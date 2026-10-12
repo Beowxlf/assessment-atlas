@@ -1,6 +1,6 @@
 # Instructions for automated contributors
 
-Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), and [roadmap](docs/roadmap.md) before substantial work. This repository currently contains product governance only. Follow the current human request and applicable authority; these files do not authorize assessments, deployment, or implementation on their own.
+Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), [supported formats](docs/supported-formats.md) and [roadmap](docs/roadmap.md) before substantial work. Version 0.1.0 is a local import/map/reporting application; use the existing modules and meaningful tests. Follow the current human request and applicable authority; these files do not authorize new assessments or deployment on their own.
 
 - Preserve the unified assessment-workspace vision and staged delivery. Do not quietly substitute a static graph or vulnerability report aggregator.
 - Keep Nmap discovery, signatures, and fingerprints as legitimate starting inputs. Do not require complete physical topology before the map is useful.

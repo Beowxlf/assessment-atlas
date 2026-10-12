@@ -2,6 +2,8 @@
 
 Effective baseline: October 12, 2026. This is an owner-led early-stage project. Product intent is established in the [charter](docs/charter.md); architecture details and delivery gates are proposals until their stated decisions are resolved. Publishing these documents does not approve a stack, license, collector, or product release.
 
+Implementation update, October 12: Brayden subsequently authorized a finished initial application, bounded NorthGate testing, code publication and reversible engineering choices. [ADR 0002](docs/adr/0002-local-initial-product.md) records the selected local stack/platform and storage/exports. Implementation uses a feature branch/PR; a runnable private package can be delivered for review. This does not grant public distribution or licensing rights, and no independent owner acceptance of unresolved product decisions is implied.
+
 ## Decision rights
 
 Brayden is the product owner and final decision maker. The repository is initially hosted in his personal GitHub account, `Beowxlf`. No additional maintainers or contributors are appointed by this document.

@@ -14,3 +14,10 @@
 *.pcapng
 Thumbs.db
 .DS_Store
+__pycache__/
+*.pyc
+*.sqlite3
+*.sqlite3-journal
+/data/
+/test-results/
+/dist/

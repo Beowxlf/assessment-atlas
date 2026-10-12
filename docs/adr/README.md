@@ -9,3 +9,4 @@ Statuses: **Proposed**, **Accepted**, **Rejected**, **Superseded**. Accepted rec
 | Record | Status | Scope |
 | --- | --- | --- |
 | [0001 — Evidence-first import architecture](0001-evidence-first-imports.md) | Accepted product direction; implementation mechanics proposed | Captures Brayden's stated evidence/import/common-model vision; selects no technology or parser |
+| [0002 — Local initial product](0002-local-initial-product.md) | Accepted within authorized implementation scope | Python/SQLite/browser stack, six bounded inputs, Linux platform, storage/exports and actual limits |

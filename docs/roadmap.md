@@ -1,6 +1,12 @@
 # Roadmap, owner decisions, and risks
 
-**Planning baseline: October 12, 2026.** Only governance documents exist. All product milestones below are proposed and unstarted. No dates, estimates, staffing, budget, stack, platform coverage, or supported parser are promised. Future implementation needs an authorized task; this roadmap is not authorization for live assessments.
+**Original planning baseline: October 12, 2026; updated after authorized implementation on the same date.** Version 0.1.0 now provides the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
+
+## Current evidence and decisions
+
+The governance bootstrap was published as `b2ba96c4b5e16d1801f85cf87e3758880762aafb`. The owner then authorized implementation and reversible stack/platform choices. [ADR 0002](adr/0002-local-initial-product.md) resolves D1/D2 for the initial product: Linux iproute2 bundles, Python 3.12+, SQLite and an original browser/SVG interface. It also records bounded local storage/export mechanics for D4. There is no integrated live collection or agent. D3 licensing remains open; real-evidence handling must fit the chosen OS access/retention model. Broader workload thresholds, adapter maintenance capacity, security contact and repository enforcement remain owner/product decisions.
+
+The first workflow, six adapters and assessment features are implemented and locally exercised with synthetic evidence; [Verification](verification.md) records actual results. NorthGate live inspection is blocked by an expired connector certificate. No live Nmap/Nessus/Nuclei result or Linux platform matrix is inferred from passing synthetic tests. The remaining stages below are future expansion; the initial product is not a claim that all later parser, passive, collector and integration work is complete.
 
 ## Staged delivery
 
@@ -28,11 +34,11 @@ Before implementation, document the selected platform, command-output bundle, su
 | G5 — Import safety and repeatability | Repeat identical import under the documented deduplication policy; changed input retains history. Malformed/oversized input and hostile XML/text neither execute content nor cause outbound requests. Failed import leaves the prior engagement intact under the declared transaction/partial-result policy. Verify persistence after closing/reopening. |
 | G6 — Export and cleanup | Export the selected map and structured results; verify every exported relation retains type, status, time/vantage, provenance references and conflicts/limitations, with a redaction manifest and usable approved evidence references. Reconcile export with selected view; exercise deletion of workspace artifacts and temporary outputs under the retention policy. |
 
-For each gate, record commit, environment, fixture identifiers/digests, steps, actual outcome, failures and limitations. Product behavior is not implemented until the relevant workflow exists, and not verified until these demonstrations occur. No gate here is recorded as passed by this document.
+For each gate, record commit, environment, fixture identifiers/digests, steps, actual outcome, failures and limitations. Product behavior is not implemented until the relevant workflow exists, and not verified until demonstrations occur. Local synthetic demonstrations for G1–G6 are recorded in [Verification](verification.md), with raw-file handling, platform, scale and accessibility limits. Live-lab verification and a human assessor acceptance trial remain separate evidence.
 
 ## Unresolved owner decisions
 
-Brayden owns these decisions unless he delegates them explicitly. No answer is assumed by publication.
+Brayden owns these decisions unless he delegates them explicitly. The table preserves the original decision questions; initial D1/D2 and reversible D4 choices are now recorded above and in ADR 0002. Other answers are not assumed.
 
 | ID | Decision | Evidence needed / when needed |
 | --- | --- | --- |

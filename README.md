@@ -2,7 +2,7 @@
 
 A unified workspace for authorized security assessments that grows a network map from evidence gathered during an engagement.
 
-**Status: governance and product definition only, initialized October 12, 2026.** No application, parser, collector, agent, automated test suite, CI workflow, or release is included. Assessment Atlas and `assessment-atlas` are working names. Repository hosting is private by default; this is not a decision about future product deployment.
+**Status: runnable initial product, version 0.1.0, October 12, 2026.** A local application with SQLite persistence, six direct import formats, an interactive evidence map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. No device agents, integrated live scanners, remote hosting, paid components, or CI workflow are included.
 
 The destination is one workspace for topology, hosts and services, findings, access achieved, unanswered questions, testing history, and reports. Source-specific adapters should bring heterogeneous evidence into one common model. Offline imports are a first-class path; authenticated management collectors and optional agents are later possibilities.
 
@@ -12,7 +12,21 @@ Nmap discovery, service signatures, and OS fingerprints provide useful initial m
 
 Import Nmap XML and output from one supported device platform → reconcile device identities → inspect an interactive map → open evidence behind a connection → export the map and results with their limitations intact.
 
-The first device platform, technology stack, deployment model, and license remain undecided. See the [roadmap and decision register](docs/roadmap.md) for proposed gates and owner decisions.
+The first device platform is Linux iproute2 JSON; the stack is Python 3.12+ with standard-library SQLite/HTTP and a dependency-free browser interface. It is a single-operator loopback application. See [ADR 0002](docs/adr/0002-local-initial-product.md), the [supported formats](docs/supported-formats.md), and the [roadmap](docs/roadmap.md). Product licensing remains an owner decision.
+
+## Start the application
+
+Extract the runnable package and double-click `Start.cmd` on Windows. Python 3.12+ is required; the launcher can also use the installed Codex Python runtime. On macOS/Linux run `sh start.sh`. No package installation, scanner installation or Internet connection is needed at runtime.
+
+From a terminal in the repository: `python -m atlas.server`. Open **http://127.0.0.1:8765**. The terminal must remain running; Ctrl+C closes the server, and saved workspaces remain available when it restarts. Use `--port 8766` if the default port is occupied. Do not expose or reverse-proxy this local server onto a network.
+
+Create a workspace, record engagement scope, then choose **Import results**. Preview a file, supply testing position/network context when known, and save. Use **Network map** to inspect nodes/connections and reconcile identities with evidence. Add questions, tests, access and manual findings in **Assessment activity**; review scanner assertions in **Findings**. **Reports & exports** provides JSON, map SVG and a printable HTML report; default exports withhold identifiers/free text, and you can preview before including them. Raw source bytes are never persisted or embedded: keep the originals in a protected evidence store and use their recorded hashes/references.
+
+The **synthetic example** demonstrates all six inputs without contacting targets. See [Getting started](GETTING_STARTED.md) for storage, backup, cleanup and capture instructions, and [Verification](docs/verification.md) for actual test evidence and limits.
+
+## Verify a checkout
+
+Run `python -m unittest discover -s tests -v`. These use synthetic fixtures and local temporary databases. Browser checks are optional development tooling: start the local app, install/use Playwright with Microsoft Edge available, then run `node tests/ui.cjs`; see [Verification](docs/verification.md). Playwright is not a runtime dependency and is not bundled in the product.
 
 ## Read the project
 
@@ -26,6 +40,9 @@ The first device platform, technology stack, deployment model, and license remai
 | [Roadmap](docs/roadmap.md) | Staged delivery, acceptance evidence, unresolved decisions, and risks |
 | [Existing tools](docs/existing-tools.md) | Representative source-backed comparison and integration boundaries |
 | [Decision records](docs/adr/README.md) | Decision process, template, and initial direction |
+| [Supported formats](docs/supported-formats.md) | Exact normalized fields, format boundaries and source documentation |
+| [Getting started](GETTING_STARTED.md) | Launch, imports, evidence handling, backups and cleanup |
+| [Verification](docs/verification.md) | Executed checks, package traceability and live-lab limits |
 | [Agent instructions](AGENTS.md) | Rules for future automated contributors |
 
 ## Licensing and sensitive material
