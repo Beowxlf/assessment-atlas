@@ -156,9 +156,10 @@ class StoreTests(unittest.TestCase):
         w=self.store.update_record(w["id"],{"id":w["findings"][0]["id"],"collection":"findings","status":"complete","note":"Requires separate impact evidence"})
         self.assertEqual(w["findings"][0]["validation"],"scanner-reported")
     def test_scoped_exports_and_default_redactions(self):
-        self.add();self.add("device.json")
+        self.add(context={"vantage":"Synthetic assessor","source_version":"Private synthetic inventory label"});self.add("device.json")
         w=self.store.export(self.workspace["id"]);text=json.dumps(w)
         self.assertNotIn("192.0.2.20",text);self.assertNotIn("portal.example.test",text);self.assertNotIn("Synthetic assessor",text)
+        self.assertNotIn("Private synthetic inventory label",text)
         self.assertTrue(w["export"]["redactions"]);self.assertTrue(w["imports"][0]["sha256"])
         full=self.store.export(self.workspace["id"],True,kind="local neighbor")
         self.assertEqual(len(full["observations"]),1);self.assertEqual(full["observations"][0]["kind"],"local neighbor")

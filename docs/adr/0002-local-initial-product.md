@@ -20,7 +20,7 @@ A hosted backend/database and frontend framework could support collaboration lat
 - Choose Linux iproute2 address/route/neighbor output for the first substantive device adapter because its structured read-only output and synthetic contract are testable without credentials. NorthGate's connector returned an expired-certificate error, so lab platform availability and live output could not be inspected. Do not infer a lab platform from this choice.
 - Keep source candidates separate across imports. Suggest shared labels/addresses within an address namespace; require a reasoned operator link. Keep decisions reversible, observation associations intact and differing values visible. Device/hop candidates can link; incompatible entity types cannot.
 - Keep collection time, import time, source version, adapter version, testing position, location pointers, source digest and status/basis. Unknown metadata remains unknown. Scanner results stay source assertions. Raw files remain operator-held; selected normalized values/excerpts are best-effort scrubbed and bounded, not raw archives.
-- Default exports withhold identifiers/free text. Offer explicit included-identifiers mode with preview, structured results, standalone SVG with evidence metadata, and printable HTML. Preserve conflicts and context outside selected filters where required to explain divergence.
+- Default exports withhold identifiers/free text and supplied source-version labels (which can contain identifying text). Offer explicit included-identifiers mode with preview, structured results, standalone SVG with evidence metadata, and printable HTML. Preserve conflicts and context outside selected filters where required to explain divergence.
 
 ## Limits and revisit triggers
 

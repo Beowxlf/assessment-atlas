@@ -253,7 +253,7 @@ class Store:
         w["export"] = {"format": "atlas-results/1", "at": now(), "identifiers_included": identifiers,
                        "selection": {"kind": kind or "all", "status": claim or "all", "import_id": import_id or "all"},
                        "limitations": "Source assertions, not independently validated impact. Graph paths are not tested reachability. Raw files held by operator. Collection gaps and history remain in observations.",
-                       "redactions": [] if identifiers else ["entity labels and addresses", "source filenames and testing position", "evidence values and free text", "workspace name and scope"]}
+                       "redactions": [] if identifiers else ["entity labels and addresses", "source filenames, supplied versions and testing position", "evidence values and free text", "workspace name and scope"]}
         if not identifiers:
             for i, e in enumerate(w["entities"]):
                 e["label"] = "Entity " + str(i + 1)
@@ -270,6 +270,7 @@ class Store:
                 o["location"] = "[withheld]"
             for artifact in w["imports"]:
                 artifact["filename"] = "[withheld]"
+                artifact["source_version"] = "[withheld]"
                 artifact["vantage"] = "[withheld]" if artifact["vantage"] != "unknown" else "unknown"
                 artifact["namespace"] = "[withheld]"
             for item in w["findings"] + w["records"] + w["history"] + w["decisions"]:
