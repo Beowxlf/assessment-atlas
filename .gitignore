@@ -1,0 +1,16 @@
+# Source repository only; do not store real evidence even in ignored folders.
+/work/
+/evidence/
+/imports/
+/exports/
+/secrets/
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.pcap
+*.pcapng
+Thumbs.db
+.DS_Store
