@@ -57,8 +57,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", f"atlas_session={self.server.session}; Path=/; HttpOnly; SameSite=Strict")
         if attachment:
             self.send_header("Content-Disposition", f'attachment; filename="{attachment}"')
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.end_headers()
+            self.wfile.write(data)
+        except OSError:
+            # A closed browser must not turn an already completed operation into
+            # a traceback/retry or place request details in terminal logs.
+            self.close_connection=True
 
     def trusted_host(self):
         port = self.server.server_address[1]
