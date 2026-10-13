@@ -1,6 +1,6 @@
-# Verification and delivery limits — 0.1.0
+# Verification and delivery limits — 0.1.1
 
-Verification date: October 12, 2026. Environment: Windows, bundled Python 3.12.14, Microsoft Edge headless via Playwright. All application input used here is synthetic. The final package's `PACKAGE_MANIFEST.json` identifies its exact source revision and SHA-256 for every source file; the external package receipt records extracted-package validation and artifact hashes. This report does not imply NorthGate or installed-scanner verification.
+Verification date: October 12, 2026. Environment: Windows, Python 3.12.14, Edge headless via Playwright. The general regression suite and packaged examples are synthetic. A separate actual NorthGate workflow is recorded in [Live validation](live-validation.md). Package manifests identify exact revisions/file hashes; external receipts record extracted-package tests. Live raw evidence is never bundled.
 
 ## Executed local checks
 
@@ -10,17 +10,17 @@ Verification date: October 12, 2026. Environment: Windows, bundled Python 3.12.1
 - Real-browser automation uses direct file selection for all six inputs, keyboard evidence activation, identity link/undo, assessment activity and finding review, reload persistence, repeat import, hostile XML rejection, redacted/included export previews, JSON/HTML/SVG downloads and map filters. Desktop (1440×1000) and mobile (390×844) screens are captured; page errors and non-loopback requests are checked. Actual screenshots were visually inspected, and oversized arrows, map legibility and an overlong suggestion panel were corrected. No whole-document horizontal overflow was observed at the tested narrow viewport.
 - Standalone SVG output was parsed as XML. Source whitespace/syntax, internal links and package file hashes are checked before delivery. No CI, branch-protection enforcement, independent security audit, accessibility certification, or user acceptance trial is claimed.
 
-The current source suite passed **31 tests** locally. Earlier suites passed 24 and then 30 tests before the bounded-suggestion regression was added. The final package receipt separately records the exact extracted-package test result; a source run alone is not package launch evidence.
+The current source suite passed **35 tests**, including forced/missing Nmap discovery and a forced-up host with only filtered ports. Version 0.1.0 passed 31 tests. The final package receipt separately records exact extracted-package validation; source checks alone are not package launch evidence.
 
 ## Measured synthetic workload
 
-One local generated Nmap-shaped input with 1,000 repeated-address host candidates produced 2,000 entities and 3,000 observations, persisted and projected in **0.590 seconds** in the recorded run. It also exercised bounded suggestions without merging repeated identifiers. This measures a single Python/store operation, not browser usability at that size, sustained throughput, memory limits, concurrent operators or the full capacity guardrails.
+In the earlier 0.1.0 verification, one local generated Nmap-shaped input with 1,000 repeated-address host candidates produced 2,000 entities and 3,000 observations, persisted and projected in **0.590 seconds** in the recorded run. It also exercised bounded suggestions without merging repeated identifiers. This measures a single Python/store operation, not browser usability at that size, sustained throughput, memory limits, concurrent operators or the full capacity guardrails.
 
 The UI displays at most 250 map nodes/600 relationships and 500 evidence rows, with visible limits and filters. Suggestions show at most 200 pairs with bounded candidate comparisons; other identities remain selectable manually. The workspace guardrails (10,000 entities/50,000 observations) are not verified capacity promises.
 
 ## NorthGate and live evidence
 
-The connected NorthGate RMM `describe` call failed certificate verification with **certificate has expired**. No live grants, endpoints, VM state or platform inventory could be read. No certificate bypass, scan, agent deployment, firewall change, service restart or lab modification was attempted. Live-lab validation remains blocked until the connector's certificate is repaired through the owner's normal management path. No live Nessus credentials or results were assumed.
+The prior certificate blocker is resolved under explicit owner authorization. Unchanged-CA TLS, actual connector grants/contracts, 11 affected services, both audit/maintenance timers, protected rollback integrity and negative unauthenticated access were verified. Actual Nmap 7.95, two Linux iproute2 6.1.0 snapshots and corroborated manual evidence passed the private import/map/evidence/reconciliation/export/persistence workflow, including actual server restart. See [Live validation](live-validation.md) for counts, the corrected host-assumption bug, interrupted refresh/recovery details and exact limits. No live Nessus/Nuclei/httpx run, human login/MFA retest or endpoint-agent recovery is claimed.
 
 ## Gate interpretation
 
@@ -30,7 +30,7 @@ G1–G6 from the [roadmap](roadmap.md) have local synthetic workflow demonstrati
 
 From the checkout root run `python -m unittest discover -s tests -v`. Start the app with a synthetic data directory: `python -m atlas.server --data-dir work/browser-data --no-open`. For browser checks, use an installed Playwright package and Microsoft Edge, then `node tests/ui.cjs`. Optional environment settings are `ATLAS_PLAYWRIGHT_MODULE` (module path), `ATLAS_UI_URL` (loopback app URL), and `ATLAS_UI_OUTPUT` (screenshots/downloads/receipt directory). Playwright is test-only tooling, not included or needed at runtime.
 
-To build a source/runnable ZIP from a clean committed revision: `python tools/package.py /new/path/assessment-atlas-0.1.0.zip`. It refuses an existing output, uses committed Git content, includes the revision/file-hash manifest and verifies archive integrity. Extract elsewhere, run the suite and app from the extraction, and exercise the browser workflow before delivering. Preserve sensitive workspace data separately; the archive contains only source, docs and synthetic fixtures.
+To build a source/runnable ZIP from a clean committed revision: `python tools/package.py /new/path/assessment-atlas-0.1.1.zip`. It refuses an existing output, uses committed Git content, includes the revision/file-hash manifest and verifies archive integrity. Extract elsewhere, run the suite and app from the extraction, and exercise the browser workflow before delivering. Preserve sensitive workspace data separately; the archive contains only source, docs and synthetic fixtures.
 
 ## Material remaining limits
 

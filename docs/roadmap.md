@@ -1,12 +1,12 @@
 # Roadmap, owner decisions, and risks
 
-**Original planning baseline: October 12, 2026; updated after authorized implementation on the same date.** Version 0.1.0 now provides the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
+**Original planning baseline: October 12, 2026; updated after authorized implementation on the same date.** Version 0.1.1 now provides the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
 
 ## Current evidence and decisions
 
 The governance bootstrap was published as `b2ba96c4b5e16d1801f85cf87e3758880762aafb`. The owner then authorized implementation and reversible stack/platform choices. [ADR 0002](adr/0002-local-initial-product.md) resolves D1/D2 for the initial product: Linux iproute2 bundles, Python 3.12+, SQLite and an original browser/SVG interface. It also records bounded local storage/export mechanics for D4. There is no integrated live collection or agent. D3 licensing remains open; real-evidence handling must fit the chosen OS access/retention model. Broader workload thresholds, adapter maintenance capacity, security contact and repository enforcement remain owner/product decisions.
 
-The first workflow, six adapters and assessment features are implemented and locally exercised with synthetic evidence; [Verification](verification.md) records actual results. NorthGate live inspection is blocked by an expired connector certificate. No live Nmap/Nessus/Nuclei result or Linux platform matrix is inferred from passing synthetic tests. The remaining stages below are future expansion; the initial product is not a claim that all later parser, passive, collector and integration work is complete.
+The first workflow, six adapters and assessment features are implemented and locally exercised with synthetic evidence; [Verification](verification.md) records actual results. The expired connector certificate has been renewed with verified service/timer recovery. Actual bounded Nmap/Linux/manual intake and the complete private workflow passed; [Live validation](live-validation.md) records the evidence and Nmap assumption correction. Nessus/Nuclei/httpx remain synthetic-only, and agent-backed/fleet coverage remains unverified. The remaining stages below are future expansion; the initial product is not a claim that all later parser, passive, collector and integration work is complete.
 
 ## Staged delivery
 

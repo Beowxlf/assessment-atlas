@@ -46,6 +46,23 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(sum(o["kind"] == "operational route" for o in b.observations), 2)
         self.assertEqual(sum(o["kind"] == "local neighbor" for o in b.observations), 1)
         self.assertTrue(all(o["basis"] == "operational" for o in b.observations))
+    def test_nmap_forced_up_is_not_observed_discovery(self):
+        text='<nmaprun><host><status state="up" reason="user-set"/><ports><port protocol="tcp" portid="443"><state state="open"/></port></ports></host></nmaprun>'
+        b=parse(text,"nmap")
+        host=next(o for o in b.observations if o['kind']=='host state')
+        port=next(o for o in b.observations if o['kind']=='service association')
+        self.assertEqual(host['status'],'unknown');self.assertEqual(host['basis'],'configured');self.assertEqual(host['value']['state'],'up')
+        self.assertEqual(port['status'],'observed');self.assertEqual(port['value']['state'],'open')
+        self.assertTrue(any('forced' in w for w in b.warnings))
+    def test_missing_nmap_discovery_status_stays_unknown(self):
+        b=parse('<nmaprun><host/></nmaprun>','nmap')
+        self.assertEqual(b.observations[0]['status'],'unknown')
+    def test_forced_up_with_only_filtered_ports_is_not_confirmed_reachable(self):
+        text='<nmaprun><host><status state="up" reason="user-set"/><ports><port protocol="tcp" portid="22"><state state="filtered" reason="no-response"/></port></ports></host></nmaprun>'
+        b=parse(text,'nmap')
+        self.assertEqual(next(o for o in b.observations if o['kind']=='host state')['status'],'unknown')
+        self.assertEqual(next(o for o in b.observations if o['kind']=='service association')['value']['state'],'filtered')
+        self.assertFalse(any(o['kind']=='tested reachability' for o in b.observations))
 
     def test_no_network_or_command_execution(self):
         with patch("socket.create_connection", side_effect=AssertionError("Import contacted network")), patch("subprocess.run", side_effect=AssertionError("Import executed command")):
@@ -128,6 +145,32 @@ class StoreTests(unittest.TestCase):
         self.store.import_file(self.workspace["id"],fixture("nmap.xml").replace('state="up"','state="down"'),"changed.xml","nmap",{})
         self.assertEqual(len(self.store.get(self.workspace["id"])["imports"]),2)
         self.assertEqual(before["observations"],self.store.get(self.workspace["id"])["observations"][:len(before["observations"])])
+    def test_old_adapter_reimport_retains_history_and_corrects_derivation(self):
+        text='<nmaprun><host><status state="up" reason="user-set"/><ports><port protocol="tcp" portid="22"><state state="filtered" reason="no-response"/></port></ports></host></nmaprun>'
+        context={"vantage":"Synthetic assessor"}
+        legacy=parse(text,"nmap",context)
+        host=next(o for o in legacy.observations if o["kind"]=="host state")
+        # Persist the v1 contract: it treated the scanner-forced host tag as observed.
+        host.update(status="observed",basis="active test",value={"state":"up","reason":"user-set"})
+        legacy.warnings=[]
+        with patch("atlas.store.VERSION","1"),patch("atlas.store.parse",return_value=legacy):
+            old=self.store.import_file(self.workspace["id"],text,"old.xml","nmap",context)
+        self.store.record(self.workspace["id"],{"kind":"note","title":"Historical interpretation","details":"Retain source evidence","evidence_refs":old["workspace"]["observations"][0]["id"],"status":"open"})
+        before=self.store.get(self.workspace["id"])
+        upgraded=Store(self.path)
+        new=upgraded.import_file(self.workspace["id"],text,"old.xml","nmap",context)
+        self.assertFalse(new["duplicate"])
+        self.assertEqual([i["adapter_version"] for i in new["workspace"]["imports"]],["1","2"])
+        self.assertEqual(old["import"]["sha256"],new["import"]["sha256"])
+        self.assertNotEqual(old["import"]["fingerprint"],new["import"]["fingerprint"])
+        after=upgraded.get(self.workspace["id"])
+        self.assertEqual(after["observations"][:len(before["observations"])],before["observations"])
+        self.assertEqual(after["history"][:-1],before["history"])
+        self.assertEqual(after["records"],before["records"])
+        corrected=next(o for o in after["observations"] if o["import_id"]==new["import"]["id"] and o["kind"]=="host state")
+        self.assertEqual((corrected["status"],corrected["basis"]),("unknown","configured"))
+        self.assertEqual(corrected["value"]["reason"],"user-set")
+        self.assertTrue(upgraded.import_file(self.workspace["id"],text,"old.xml","nmap",context)["duplicate"])
     def test_failed_import_leaves_workspace_unchanged(self):
         self.add();before=self.store.get(self.workspace["id"])
         with self.assertRaises(ImportProblem):self.store.import_file(self.workspace["id"],"<bad", "bad.xml","nmap",{})

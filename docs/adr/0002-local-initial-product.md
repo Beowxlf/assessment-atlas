@@ -29,3 +29,7 @@ No app encryption, multi-user identity, remote deployment, live scanner, mandato
 Revisit snapshot storage and graph rendering when measured datasets make updates or inspection slow; hosting/tenancy when collaboration is requested; adapter coverage when authorized real outputs are available; at-rest controls before handling evidence that needs stronger protection. Product license and external contribution terms remain owner decisions. This ADR resolves initial mechanics from [0001](0001-evidence-first-imports.md) without superseding its broader direction.
 
 Verification: [executed evidence](../verification.md). Runtime/library sources: [Python HTTP documentation](https://docs.python.org/3.12/library/http.server.html), [XML security guidance](https://docs.python.org/3.12/library/xml.html). No third-party runtime code is copied or bundled.
+
+## Live verification follow-up — October 12, 2026
+
+The owner subsequently authorized certificate repair and live testing. The secure connector is restored, and actual bounded Nmap/Linux/manual evidence passes the full local workflow. [Live validation](../live-validation.md) records exact coverage, service/timer recovery, the offline-agent limitation and scanner-forced host correction in 0.1.1. Historical initial-choice rationale remains above.

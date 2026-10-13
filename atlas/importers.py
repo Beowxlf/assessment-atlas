@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ITEMS = 30000
-VERSION = "1"
+VERSION = "2"
 SUPPORTED = ("nmap", "nessus", "nuclei", "httpx", "linux-ip", "atlas")
 
 
@@ -156,7 +156,13 @@ def nmap(text, context):
         names = [x.get("name") for x in host.findall("hostnames/hostname") if x.get("name")]
         key = b.entity(f"host:{index}", (names or addresses or [f"Host {index+1}"])[0], addresses=addresses)
         when = host.get("endtime") or root.get("start")
-        b.obs(key, "host state", dict(host.find("status").attrib) if host.find("status") is not None else {"state": "unknown"}, loc + "/status", time=when)
+        host_status = dict(host.find("status").attrib) if host.find("status") is not None else {"state": "unknown"}
+        assumed = host_status.get("reason") == "user-set"
+        unknown = assumed or host_status.get("state") in (None, "unknown")
+        if assumed:
+            host_status["interpretation"] = "Scanner-forced status; this status alone does not establish host reachability. Inspect port responses separately."
+            b.warnings.append(f"Host {index+1}: discovery was skipped or forced; its reported up state is not observed reachability.")
+        b.obs(key, "host state", host_status, loc + "/status", status="unknown" if unknown else "observed", basis="configured" if assumed else "active test", time=when)
         for a in host.findall("address"):
             b.obs(key, "address", dict(a.attrib), loc + "/address", time=when)
         for name in names:

@@ -1,6 +1,6 @@
 # Security and assessment boundaries
 
-Version 0.1.0 is a single-operator application bound only to `127.0.0.1`. It uses a per-process session cookie, same-origin mutation checks, an in-memory request nonce, restricted static paths, and no import-initiated network or command execution. It is not a remote/multi-user service or an independently audited security product. Review the [actual verification and limitations](docs/verification.md).
+Version 0.1.1 is a single-operator application bound only to `127.0.0.1`. It uses a per-process session cookie, same-origin mutation checks, an in-memory request nonce, restricted static paths, and no import-initiated network or command execution. It is not a remote/multi-user service or an independently audited security product. Review the [actual verification and limitations](docs/verification.md).
 
 SQLite holds normalized, best-effort sanitized excerpts and assessment records; original input bytes are not stored. The OS account and disk protection provide at-rest access control; there is no application encryption, user account system or guaranteed forensic erase. Back up/restore only while the app is stopped. A process lock prevents concurrent app instances from opening the same data directory. Default exports withhold identifiers and free text; including them requires an explicit checkbox. Inspect all sensitive exports because pattern-based secret detection cannot find every secret. Original files, external backups and downloaded exports remain outside application deletion.
 

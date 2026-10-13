@@ -2,7 +2,7 @@
 
 A unified workspace for authorized security assessments that grows a network map from evidence gathered during an engagement.
 
-**Status: runnable initial product, version 0.1.0, October 12, 2026.** A local application with SQLite persistence, six direct import formats, an interactive evidence map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. No device agents, integrated live scanners, remote hosting, paid components, or CI workflow are included.
+**Status: runnable initial product, version 0.1.1, October 12, 2026.** A local application with SQLite persistence, six direct import formats, an interactive evidence map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. No device agents, integrated live scanners, remote hosting, paid components, or CI workflow are included.
 
 The destination is one workspace for topology, hosts and services, findings, access achieved, unanswered questions, testing history, and reports. Source-specific adapters should bring heterogeneous evidence into one common model. Offline imports are a first-class path; authenticated management collectors and optional agents are later possibilities.
 
@@ -21,6 +21,8 @@ Extract the runnable package and double-click `Start.cmd` on Windows. Python 3.1
 From a terminal in the repository: `python -m atlas.server`. Open **http://127.0.0.1:8765**. The terminal must remain running; Ctrl+C closes the server, and saved workspaces remain available when it restarts. Use `--port 8766` if the default port is occupied. Do not expose or reverse-proxy this local server onto a network.
 
 Create a workspace, record engagement scope, then choose **Import results**. Preview a file, supply testing position/network context when known, and save. Use **Network map** to inspect nodes/connections and reconcile identities with evidence. Add questions, tests, access and manual findings in **Assessment activity**; review scanner assertions in **Findings**. **Reports & exports** provides JSON, map SVG and a printable HTML report; default exports withhold identifiers/free text, and you can preview before including them. Raw source bytes are never persisted or embedded: keep the originals in a protected evidence store and use their recorded hashes/references.
+
+Version 0.1.1 has bounded actual NorthGate Nmap/Linux/manual verification and corrects scanner-forced host status: `up`/`user-set` is a configured assumption with unknown reachability, while open/filtered port results remain distinct. Historical observations stay intact; new derivations use adapter revision 2. See [Live validation](docs/live-validation.md).
 
 The **synthetic example** demonstrates all six inputs without contacting targets. See [Getting started](GETTING_STARTED.md) for storage, backup, cleanup and capture instructions, and [Verification](docs/verification.md) for actual test evidence and limits.
 
@@ -43,6 +45,7 @@ Run `python -m unittest discover -s tests -v`. These use synthetic fixtures and 
 | [Supported formats](docs/supported-formats.md) | Exact normalized fields, format boundaries and source documentation |
 | [Getting started](GETTING_STARTED.md) | Launch, imports, evidence handling, backups and cleanup |
 | [Verification](docs/verification.md) | Executed checks, package traceability and live-lab limits |
+| [Live validation](docs/live-validation.md) | Restored connector, actual input coverage, workflow checks and the fault corrected |
 | [Agent instructions](AGENTS.md) | Rules for future automated contributors |
 
 ## Licensing and sensitive material

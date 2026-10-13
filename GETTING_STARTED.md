@@ -1,4 +1,4 @@
-# Getting started with Assessment Atlas 0.1.0
+# Getting started with Assessment Atlas 0.1.1
 
 ## Open the application
 
@@ -19,13 +19,15 @@ The synthetic example is a safe way to explore all six input formats. Every resu
 
 ## Linux device output
 
-For a Linux machine you are authorized to inspect, explicitly run `python tools/capture_linux.py /protected/evidence/device-output.json` on that machine. It invokes only `ip -V`, `ip -j address show`, `ip -j route show table all`, and `ip -j neigh show`, each with a ten-second timeout. It does not scan peers or change state, and refuses to overwrite an existing output file. Review the output for sensitivity and import the resulting `linux-ip/1` bundle. The app never runs this capture helper itself. The helper has synthetic contract tests; live Linux/NorthGate collection was unavailable in the recorded verification.
+For a Linux machine you are authorized to inspect, explicitly run `python tools/capture_linux.py /protected/evidence/device-output.json` on that machine. It invokes only `ip -V`, `ip -j address show`, `ip -j route show table all`, and `ip -j neigh show`, each with a ten-second timeout. It does not scan peers or change state, and refuses to overwrite an existing output file. Review the output for sensitivity and import the resulting `linux-ip/1` bundle. The app never runs this capture helper itself. The helper has synthetic contract tests; equivalent fixed read-only commands produced the actual Linux snapshots used in [Live validation](docs/live-validation.md).
 
 ## Storage, backup and deletion
 
 On Windows the default database is `%LOCALAPPDATA%\AssessmentAtlas\atlas.sqlite3`; Linux/macOS use `~/.local/share/AssessmentAtlas/atlas.sqlite3` unless LOCALAPPDATA is set. The app shows its actual path under **Reports & exports**. To select a directory, use `python -m atlas.server --data-dir /your/protected/folder` (quote paths with spaces). Protect the folder with OS access controls and disk encryption; app-level encryption is not implemented.
 
 Keep original input files outside the repository in your controlled evidence store. Atlas records the SHA-256 of imported UTF-8 bytes and their original filename reference, plus sanitized normalized excerpts; it does not retain raw source bytes. Selected long strings are capped at 12,000 characters. Secret scrubbing is best effort.
+
+Version 0.1.1 keeps database schema 1 and does not rewrite historical observations. Nmap forced `up`/`user-set` is now unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under adapter revision 2 creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
 
 Stop the application before copying the database for backup. Restore to an empty data directory with the same application/schema version; preserve the prior database separately. Results exports are reports, not restorable workspace backups. Newer database schema versions are rejected rather than silently rewritten.
 
