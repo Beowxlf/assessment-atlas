@@ -33,10 +33,24 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         with self.connect() as con:
-            if con.execute("PRAGMA user_version").fetchone()[0] not in (0, 1):
+            version=con.execute("PRAGMA user_version").fetchone()[0]
+            if version not in (0, 1, 2):
                 raise ImportProblem("Unsupported database schema version. Preserve this data folder and use its compatible application version.")
+            if version==1:
+                backup=self.path.with_name(self.path.stem+'-before-schema2-'+uid()+'.sqlite3')
+                with backup.open('xb'):pass
+                destination=sqlite3.connect(backup)
+                try:con.backup(destination)
+                finally:destination.close()
             con.execute("CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, body TEXT NOT NULL)")
-            con.execute("PRAGMA user_version=1")
+            con.execute("PRAGMA user_version=2")
+            # Interrupted live jobs are not silently resumed after a server restart.
+            for key,body in con.execute('SELECT id,body FROM workspaces').fetchall():
+                w=json.loads(body);changed=False
+                for run in w.get('web_runs',[]):
+                    if run['state'] in ('queued','running'):
+                        run.update(state='interrupted',ended_at=now(),reason='Application restarted; retained partial evidence.');changed=True
+                if changed:con.execute('UPDATE workspaces SET body=? WHERE id=?',(json.dumps(w,ensure_ascii=False),key))
 
     @contextmanager
     def connect(self):
@@ -84,7 +98,8 @@ class Store:
                 con.commit()
                 con.execute("VACUUM")
 
-    def import_file(self, workspace, content, filename, source, context):
+    def import_file(self, workspace, content, filename, source, context, intake='offline'):
+        if intake not in ('offline','native live'):raise ImportProblem('Unknown evidence intake mode.')
         bundle = parse(content, source, copy.deepcopy(context))
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         # Metadata changes intentionally create a distinct import; identical repeat is a no-op.
@@ -92,14 +107,22 @@ class Store:
         with self.lock:
             w = self.get(workspace)
             existing = next((x for x in w["imports"] if x["fingerprint"] == fingerprint), None)
+            event_id=getattr(bundle,'event_id',None)
+            if event_id:
+                previous=next((x for x in w['imports'] if x.get('event_id')==event_id and x['source']==bundle.source),None)
+                if previous and previous['sha256']!=digest:raise ImportProblem('Event ID already identifies different source content; history was preserved.')
+                existing=previous if previous and previous['fingerprint']==fingerprint else existing
             if existing:
                 return {"duplicate": True, "import": existing, "workspace": self.view(w)}
             artifact = {"id": uid(), "filename": clean(Path(str(filename).replace('\\', '/')).name)[:200],
+                        "intake_mode":intake,
                         "sha256": digest, "fingerprint": fingerprint, "source": bundle.source,
                         "source_version": clean(context.get("source_version")) or bundle.source_version,
                         "adapter_version": VERSION, "imported_at": now(), "namespace": clean(context.get("namespace")) or "default",
                         "vantage": clean(context.get("vantage")) or "unknown", "warnings": bundle.warnings,
                         "raw_reference": "Original file held by operator; raw bytes are not persisted. Digest identifies original input."}
+            if event_id:artifact['event_id']=event_id
+            if bundle.source.startswith('web-'):artifact['raw_reference']='Bounded live capture or web envelope; raw messages are transient and not persisted. Retained excerpts may be redacted/truncated; protect source originals separately when available.'
             mapping = {entity["key"]: uid() for entity in bundle.entities}
             for entity in bundle.entities:
                 w["entities"].append({**entity, "id": mapping[entity["key"]], "import_id": artifact["id"], "namespace": artifact["namespace"]})
@@ -113,6 +136,22 @@ class Store:
             w["history"].append({"at": now(), "action": "import", "detail": f"{artifact['filename']}: {len(bundle.entities)} entities, {len(bundle.observations)} observations", "import_id": artifact["id"]})
             self._save(w)
             return {"duplicate": False, "import": artifact, "workspace": self.view(w)}
+
+    def start_web_run(self,workspace,kind,plan):
+        with self.lock:
+            w=self.get(workspace);runs=w.setdefault('web_runs',[])
+            if len(runs)>=200:raise ImportProblem('This workspace has 200 retained web runs; use a new workspace for more runs.')
+            run={'id':uid(),'kind':kind,'state':'queued','started_at':now(),'plan':copy.deepcopy(plan),'requests':0,'import_ids':[],'errors':[],'skipped':0,'reason':''}
+            runs.append(run);w['history'].append({'at':now(),'action':'web run scheduled','detail':kind,'run_id':run['id']});self._save(w)
+            return copy.deepcopy(run)
+
+    def update_web_run(self,workspace,run_id,**changes):
+        with self.lock:
+            w=self.get(workspace);run=next((r for r in w.get('web_runs',[]) if r['id']==run_id),None)
+            if not run:raise ImportProblem('Web run not found.')
+            run.update(copy.deepcopy(changes));self._save(w);return copy.deepcopy(run)
+
+    def web_runs(self,workspace):return copy.deepcopy(self.get(workspace).get('web_runs',[]))
 
     def reconcile(self, workspace, left, right, reason):
         with self.lock:
@@ -252,9 +291,11 @@ class Store:
         w["context_observations"] = [o for o in all_observations if o["id"] in conflict_ids and o["id"] not in selected_ids]
         w["export"] = {"format": "atlas-results/1", "at": now(), "identifiers_included": identifiers,
                        "selection": {"kind": kind or "all", "status": claim or "all", "import_id": import_id or "all"},
-                       "limitations": "Source assertions, not independently validated impact. Graph paths are not tested reachability. Raw files held by operator. Collection gaps and history remain in observations.",
+                       "limitations": "Source assertions, not independently validated impact. Graph paths are not tested reachability. Imported originals held by operator; native raw messages are transient with bounded/redacted excerpts. Collection gaps and history remain in observations.",
                        "redactions": [] if identifiers else ["entity labels and addresses", "source filenames, supplied versions and testing position", "evidence values and free text", "workspace name and scope"]}
         if not identifiers:
+            for run in w.get('web_runs',[]):
+                run['plan']='[withheld]';run['errors']=['[withheld]' for _ in run.get('errors',[])];run['reason']='[withheld]'
             for i, e in enumerate(w["entities"]):
                 e["label"] = "Entity " + str(i + 1)
                 e["addresses"] = []
@@ -292,8 +333,9 @@ def html_report(w):
     body = table("Inventory", w["nodes"], ["id", "label", "kind", "addresses"])
     body += table("Findings (source assertions)", w["findings"], ["subject", "title", "severity", "validation", "status", "description", "import_id", "location"])
     body += table("Assessment activity", w["records"], ["kind", "title", "status", "subject", "details", "evidence_refs", "at"])
+    body += table("Native web runs and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','skipped','plan','errors','reason','import_ids'])
     body += table("Evidence and typed relationships", w["observations"], ["id", "subject", "target", "kind", "status", "basis", "value", "collected_at", "vantage", "import_id", "location"])
-    body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])
+    body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "intake_mode", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])
     body += table("Divergent observations", w["conflicts"], ["subject", "kind", "observations", "reason"])
     body += table("Conflict context outside selected filter", w.get("context_observations", []), ["id", "subject", "kind", "value", "status", "basis", "collected_at", "vantage", "import_id", "location"])
     body += table("Identity decisions", w["decisions"], ["left", "right", "reason", "active", "at"])

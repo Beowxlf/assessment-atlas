@@ -1,13 +1,13 @@
 # Architecture principles and evidence model
 
-**Status:** product-direction baseline and logical model, October 12, 2026. Version 0.1.1 implements a bounded subset in Python, local SQLite and a browser UI; [ADR 0002](adr/0002-local-initial-product.md) records actual choices, formats, storage and remaining limits. Some richer logical entities/lifecycle contracts below remain future design requirements. [ADR 0001](adr/0001-evidence-first-imports.md) records the established direction.
+**Status:** product-direction baseline and logical model, October 12, 2026. Version 0.2.0 implements a bounded subset in Python, local SQLite and a browser UI; [ADR 0002](adr/0002-local-initial-product.md) records actual choices, formats, storage and remaining limits. Some richer logical entities/lifecycle contracts below remain future design requirements. [ADR 0001](adr/0001-evidence-first-imports.md) records the established direction.
 
 ## Evidence flow and trust boundaries
 
 ```mermaid
 flowchart LR
   A[Untrusted offline artifacts] --> B[Bounded source adapters]
-  C[Later authorized collectors] --> B
+  C[Explicit native web collectors] --> B
   B --> D[Normalized observations and diagnostics]
   D --> E[Identity reconciliation and evidence store]
   E --> F[Interactive map and evidence inspection]
@@ -77,3 +77,7 @@ Adapters declare supported formats/versions, input limits, exact mappings, diagn
 Map inspection must expose relation type, observed/inferred/unknown status, evidence basis, time, vantage, supporting and conflicting observations. Filters/snapshots must make omitted and stale evidence understandable. Findings, tests and access history should refer to the same entities; retain separate evidence levels for service exposure, authentication, authorization and impact.
 
 Exports must preserve typed edges and provenance references plus time/vantage, uncertainty, conflict and redaction information. They must not turn inferred graph routes into demonstrated attack paths. Export formats, graph library and durable storage remain undecided. [Roadmap gates](roadmap.md) define the first end-to-end evidence required.
+
+## Native web implementation
+
+[ADR 0003](adr/0003-native-web-workbench.md) records actual native tool boundaries, logical web origin/resource/parameter entities, atlas-web/1 normalization, source/body digests, offline/native intake provenance, schema-2 exact backup and persisted run states. A proxy is an explicitly configured local tool, not an endpoint agent. Public CA input does not disable TLS; the isolated browser trusts only its ephemeral proxy CA pin while the proxy verifies upstream. The broader logical model above remains a destination, not a parity claim.

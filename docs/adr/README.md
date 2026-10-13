@@ -10,3 +10,4 @@ Statuses: **Proposed**, **Accepted**, **Rejected**, **Superseded**. Accepted rec
 | --- | --- | --- |
 | [0001 — Evidence-first import architecture](0001-evidence-first-imports.md) | Accepted product direction; implementation mechanics proposed | Captures Brayden's stated evidence/import/common-model vision; selects no technology or parser |
 | [0002 — Local initial product](0002-local-initial-product.md) | Accepted within authorized implementation scope | Python/SQLite/browser stack, six bounded inputs, Linux platform, storage/exports and actual limits |
+| [0003 — Native web workbench](0003-native-web-workbench.md) | Accepted within explicit native implementation scope | Six bounded native workflows, scoped transport/interception/browser, schema-2 backup and unfinished parity acceptance |

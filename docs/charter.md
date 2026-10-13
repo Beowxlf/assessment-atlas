@@ -25,7 +25,7 @@ The map can be useful before physical wiring is known. Nmap signatures and finge
 
 Router access enables potential data collection; it does not automatically supply observations. Manual/offline import and later authenticated management interfaces or APIs feed the same model. Agents are optional. Passive observations and additional platform parsers are later stages.
 
-The initial bootstrap authorized repository creation and governance publication. Later on October 12, Brayden explicitly expanded scope to implementation and verification of a finished initial product, with NorthGate available for bounded testing. Version 0.1.1 now implements local import, persistence, mapping, evidence inspection, assessment tracking and exports. That authorization does not extend to disruptive lab changes, paid services or public distribution. Avoid promising universal parser coverage, production scale, delivery dates or a license without evidence and owner decisions.
+The initial bootstrap authorized repository creation and governance publication. Later on October 12, Brayden explicitly expanded scope to implementation and verification of a finished initial product, with NorthGate available for bounded testing. Version 0.2.0 now implements local import, persistence, mapping, evidence inspection, assessment tracking and exports. That authorization does not extend to disruptive lab changes, paid services or public distribution. Avoid promising universal parser coverage, production scale, delivery dates or a license without evidence and owner decisions.
 
 ## Success and evidence
 
@@ -34,3 +34,5 @@ The first complete product workflow is Nmap XML plus supported device output →
 Longer-term success means the same evidence model supports the broader assessment lifecycle without losing provenance or forcing mandatory agents. Customer demand, workload/scale, usability, performance, commercial viability, and cost are **Insufficient data** today. Resolve them through bounded assessor trials and measured fixture workloads rather than invented targets or dates.
 
 Ownership and change authority: [Governance](../GOVERNANCE.md).
+
+The owner extended scope to native Burp-style capabilities and replaced external Burp piping. All six web categories belong to the destination; initial bounded native workflows and concrete unfinished parity acceptance are recorded in [Coverage](native-web-coverage.md).

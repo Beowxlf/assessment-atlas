@@ -1,6 +1,6 @@
 # Security and assessment boundaries
 
-Version 0.1.1 is a single-operator application bound only to `127.0.0.1`. It uses a per-process session cookie, same-origin mutation checks, an in-memory request nonce, restricted static paths, and no import-initiated network or command execution. It is not a remote/multi-user service or an independently audited security product. Review the [actual verification and limitations](docs/verification.md).
+Version 0.2.0 is a single-operator application bound only to `127.0.0.1`. It uses a per-process session cookie, same-origin mutation checks, an in-memory request nonce, restricted static paths, and no import-initiated network or command execution. It is not a remote/multi-user service or an independently audited security product. Review the [actual verification and limitations](docs/verification.md).
 
 SQLite holds normalized, best-effort sanitized excerpts and assessment records; original input bytes are not stored. The OS account and disk protection provide at-rest access control; there is no application encryption, user account system or guaranteed forensic erase. Back up/restore only while the app is stopped. A process lock prevents concurrent app instances from opening the same data directory. Default exports withhold identifiers and free text; including them requires an explicit checkbox. Inspect all sensitive exports because pattern-based secret detection cannot find every secret. Original files, external backups and downloaded exports remain outside application deletion.
 
@@ -8,7 +8,7 @@ SQLite holds normalized, best-effort sanitized excerpts and assessment records; 
 
 Before live collection or testing, record the engagement authority, approved targets and exclusions, permitted methods, time window, testing vantage points, operator, stop conditions, sensitive-data handling, and cleanup obligations. Existing authorization can cover bounded actions within that scope; request a new decision when targets, methods, impact, or distribution exceed it. Importing an artifact is not authorization to contact its hosts.
 
-Offline import must work without contacting discovered addresses. Future live collectors must be deliberately enabled with an inspectable plan of commands or API requests, least-privilege access, target checks, resource limits, timeouts, cancellation, and an activity record. Importing configuration, obtaining router access, or drawing a graph must never trigger collection automatically. Default to read-only management behavior; device modification needs separate explicit authority.
+Offline import must work without contacting discovered addresses. Native web tools are now implemented with the boundaries in [Web security](docs/web-security.md) and [setup/retention](docs/web-tools.md). Full scanner/protocol/SPA coverage remains unqualified. Live collectors must be deliberately enabled with an inspectable plan of commands or API requests, least-privilege access, target checks, resource limits, timeouts, cancellation, and an activity record. Importing configuration, obtaining router access, or drawing a graph must never trigger collection automatically. Default to read-only management behavior; device modification needs separate explicit authority.
 
 ## Untrusted imports
 

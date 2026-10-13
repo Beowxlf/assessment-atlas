@@ -1,4 +1,4 @@
-# Verification and delivery limits — 0.1.1
+# Verification and delivery limits — 0.2.0
 
 Verification date: October 12, 2026. Environment: Windows, Python 3.12.14, Edge headless via Playwright. The general regression suite and packaged examples are synthetic. A separate actual NorthGate workflow is recorded in [Live validation](live-validation.md). Package manifests identify exact revisions/file hashes; external receipts record extracted-package tests. Live raw evidence is never bundled.
 
@@ -10,7 +10,7 @@ Verification date: October 12, 2026. Environment: Windows, Python 3.12.14, Edge 
 - Real-browser automation uses direct file selection for all six inputs, keyboard evidence activation, identity link/undo, assessment activity and finding review, reload persistence, repeat import, hostile XML rejection, redacted/included export previews, JSON/HTML/SVG downloads and map filters. Desktop (1440×1000) and mobile (390×844) screens are captured; page errors and non-loopback requests are checked. Actual screenshots were visually inspected, and oversized arrows, map legibility and an overlong suggestion panel were corrected. No whole-document horizontal overflow was observed at the tested narrow viewport.
 - Standalone SVG output was parsed as XML. Source whitespace/syntax, internal links and package file hashes are checked before delivery. No CI, branch-protection enforcement, independent security audit, accessibility certification, or user acceptance trial is claimed.
 
-The current source suite passed **35 tests**, including forced/missing Nmap discovery and a forced-up host with only filtered ports. Version 0.1.0 passed 31 tests. The final package receipt separately records exact extracted-package validation; source checks alone are not package launch evidence.
+The earlier 0.1.1 source suite passed **35 tests**, including forced/missing Nmap discovery and a forced-up host with only filtered ports. Version 0.1.0 passed 31 tests. The final package receipt separately records exact extracted-package validation; source checks alone are not package launch evidence.
 
 ## Measured synthetic workload
 
@@ -30,8 +30,12 @@ G1–G6 from the [roadmap](roadmap.md) have local synthetic workflow demonstrati
 
 From the checkout root run `python -m unittest discover -s tests -v`. Start the app with a synthetic data directory: `python -m atlas.server --data-dir work/browser-data --no-open`. For browser checks, use an installed Playwright package and Microsoft Edge, then `node tests/ui.cjs`. Optional environment settings are `ATLAS_PLAYWRIGHT_MODULE` (module path), `ATLAS_UI_URL` (loopback app URL), and `ATLAS_UI_OUTPUT` (screenshots/downloads/receipt directory). Playwright is test-only tooling, not included or needed at runtime.
 
-To build a source/runnable ZIP from a clean committed revision: `python tools/package.py /new/path/assessment-atlas-0.1.1.zip`. It refuses an existing output, uses committed Git content, includes the revision/file-hash manifest and verifies archive integrity. Extract elsewhere, run the suite and app from the extraction, and exercise the browser workflow before delivering. Preserve sensitive workspace data separately; the archive contains only source, docs and synthetic fixtures.
+To build a source/runnable ZIP from a clean committed revision: `python tools/package.py /new/path/assessment-atlas-0.2.0.zip`. It refuses an existing output, uses committed Git content, includes the revision/file-hash manifest and verifies archive integrity. Extract elsewhere, run the suite and app from the extraction, and exercise the browser workflow before delivering. Preserve sensitive workspace data separately; the archive contains only source, docs and synthetic fixtures.
 
 ## Material remaining limits
 
-Single workstation/operator only; OS account/disk controls rather than app encryption; Python/browser required; no live scans or authenticated integrated collectors; Linux bundle only for device operational output; no installed-tool/version matrix; no passive intake beyond manual evidence; no remote collaboration or reporting-service connector; results exports are not workspace-restore files; no guaranteed secret detection or forensic erase. Long excerpt truncation and unknown/unmapped fields are disclosed. Source flags and a review status never establish independently validated impact. Product license and external contribution terms remain undecided.
+Single workstation/operator only; OS account/disk controls rather than app encryption; Python/browser and optional native TLS/browser dependencies required. Native scoped web tools are implemented, with exact support/limits in [Coverage](native-web-coverage.md); no authenticated guest-management collector or endpoint agent is provided. Linux bundles remain the device-output platform; no universal tool/version matrix, remote collaboration or reporting-service connector is claimed. Results exports are not workspace-restore files; no guaranteed secret detection or forensic erase. Long excerpt truncation and unknown/unmapped fields are disclosed. Source flags and a review status never establish independently validated impact. Product license and external contribution terms remain undecided.
+
+## Native web extension of verification
+
+The current 0.2.0 source suite passes 52 tests, and actual UI workflows exercise all six native categories, including a real isolated Edge HTTPS login POST/cookie/JavaScript API session. This does not establish all-feature/scanner parity. [Native verification](native-web-verification.md) records named environments, exact local/live/package coverage and material limits. Earlier 0.1.x results above are historical; the newer external package receipt is authoritative for its exact committed artifact.

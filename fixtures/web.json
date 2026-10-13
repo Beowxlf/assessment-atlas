@@ -1,0 +1,23 @@
+{
+  "format": "atlas-web/1",
+  "source": "web-proxy",
+  "tool_version": "Synthetic native web fixture 1",
+  "capture_mode": "redacted",
+  "events": [{
+    "id": "synthetic-web-1",
+    "url": "https://web.example.test/login?next=%2Fdashboard",
+    "captured_at": "2026-10-12T16:00:00Z",
+    "request": {
+      "method": "POST",
+      "headers": [{"name": "Content-Type", "value": "application/json"}],
+      "body": "{\"username\":\"synthetic\",\"password\":\"synthetic-only\"}"
+    },
+    "response": {
+      "status": 200,
+      "headers": [{"name": "Content-Type", "value": "text/html"}],
+      "body": "<form action=\"/search\"><input name=\"search\"></form>"
+    },
+    "parameters": [{"name": "search", "location": "form"}],
+    "links": [{"url": "https://web.example.test/search", "kind": "form"}]
+  }]
+}

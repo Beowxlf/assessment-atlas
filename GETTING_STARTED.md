@@ -1,4 +1,4 @@
-# Getting started with Assessment Atlas 0.1.1
+# Getting started with Assessment Atlas 0.2.0
 
 ## Open the application
 
@@ -27,7 +27,7 @@ On Windows the default database is `%LOCALAPPDATA%\AssessmentAtlas\atlas.sqlite3
 
 Keep original input files outside the repository in your controlled evidence store. Atlas records the SHA-256 of imported UTF-8 bytes and their original filename reference, plus sanitized normalized excerpts; it does not retain raw source bytes. Selected long strings are capped at 12,000 characters. Secret scrubbing is best effort.
 
-Version 0.1.1 keeps database schema 1 and does not rewrite historical observations. Nmap forced `up`/`user-set` is now unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under adapter revision 2 creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
+Version 0.2.0 keeps database schema 1 and does not rewrite historical observations. Nmap forced `up`/`user-set` is now unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under adapter revision 2 creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
 
 Stop the application before copying the database for backup. Restore to an empty data directory with the same application/schema version; preserve the prior database separately. Results exports are reports, not restorable workspace backups. Newer database schema versions are rejected rather than silently rewritten.
 
@@ -35,4 +35,8 @@ Deleting a workspace requires typing its name. It removes the saved workspace, e
 
 ## Current boundaries
 
-The first release handles bounded text imports and local reporting, not every tool/vendor/version. There are no live scanners, Nessus credentials, device agents, passive packet collection or remote collaboration. “Nexus” from the product discussion is provisionally interpreted as **Nessus**; no Nexus Repository compatibility is claimed. Read [Verification](docs/verification.md) before relying on platform or performance claims.
+The first release handled bounded text imports and reporting. Version 0.2.0 adds native scoped web collection and exact original checks; full tool/scanner parity remains unfinished. No Nessus credentials, endpoint agents, passive network packet collection or remote collaboration are included. “Nexus” from the product discussion is provisionally interpreted as **Nessus**; no Nexus Repository compatibility is claimed. Read [Verification](docs/verification.md) and [native coverage](docs/native-web-coverage.md) before relying on support or performance claims.
+
+## Native web workbench
+
+Open Web workbench for deliberately scoped native collection, request comparison, parameter tests, interception, authenticated browsing and original checks. [Setup and recovery](docs/web-tools.md) explains optional dependencies and schema-2 backup; [coverage](docs/native-web-coverage.md) distinguishes implemented workflows from unfinished Burp parity. No Atlas endpoint agent or external Burp extension is installed.

@@ -1,0 +1,3 @@
+# Used only for native HTTPS interception. Other core tools use the standard library.
+# Actual release verification uses cryptography 50.0.2; this range is not a version matrix claim.
+cryptography>=44.0.0,<51

@@ -10,7 +10,8 @@ from urllib.parse import urlsplit
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ITEMS = 30000
 VERSION = "2"
-SUPPORTED = ("nmap", "nessus", "nuclei", "httpx", "linux-ip", "atlas")
+WEB_SOURCES = ('web-enumeration','web-workbench','web-payload','web-proxy','web-browser','web-scanner')
+SUPPORTED = ("nmap", "nessus", "nuclei", "httpx", "linux-ip", "atlas") + WEB_SOURCES
 
 
 class ImportProblem(ValueError):
@@ -371,11 +372,15 @@ def parse(content, source="auto", context=None):
             first = events(content)
             obj = first[0] if first else {}
             if isinstance(obj, dict):
-                source = {"linux-ip/1": "linux-ip", "atlas-evidence/1": "atlas"}.get(obj.get("format"), "nuclei" if "template-id" in obj else "httpx" if "url" in obj else "unknown")
+                source = obj.get('source','web-enumeration') if obj.get('format')=='atlas-web/1' else {"linux-ip/1": "linux-ip", "atlas-evidence/1": "atlas"}.get(obj.get("format"), "nuclei" if "template-id" in obj else "httpx" if "url" in obj else "unknown")
     if source not in SUPPORTED:
         raise ImportProblem("Unsupported format. Choose a supported tool output or use the common evidence template.")
     try:
-        bundle = {"nmap": nmap, "nessus": nessus, "linux-ip": linux_ip, "atlas": manual}.get(source, lambda t, c: web_results(t, c, source))(content, context)
+        if source in WEB_SOURCES:
+            from .web_evidence import normalize
+            bundle = normalize(content,context,source)
+        else:
+            bundle = {"nmap": nmap, "nessus": nessus, "linux-ip": linux_ip, "atlas": manual}.get(source, lambda t, c: web_results(t, c, source))(content, context)
     except (KeyError, TypeError, AttributeError, ValueError, RecursionError) as exc:
         if isinstance(exc, ImportProblem):
             raise

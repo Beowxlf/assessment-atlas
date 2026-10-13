@@ -2,7 +2,7 @@
 
 A unified workspace for authorized security assessments that grows a network map from evidence gathered during an engagement.
 
-**Status: runnable initial product, version 0.1.1, October 12, 2026.** A local application with SQLite persistence, six direct import formats, an interactive evidence map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. No device agents, integrated live scanners, remote hosting, paid components, or CI workflow are included.
+**Status: runnable native web workbench, version 0.2.0, October 12, 2026.** A local application with SQLite persistence, six legacy import formats plus inert web evidence, an interactive network/web map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. Native scoped crawling, request edit/replay/compare, selected-parameter tests, HTTP/HTTPS interception, isolated authenticated JavaScript browsing and original response checks are implemented. No device agents, external Burp bridge, remote hosting, paid components or CI workflow are included. Full Burp feature/scanner parity remains unfinished; see the [capability and acceptance matrix](docs/native-web-coverage.md).
 
 The destination is one workspace for topology, hosts and services, findings, access achieved, unanswered questions, testing history, and reports. Source-specific adapters should bring heterogeneous evidence into one common model. Offline imports are a first-class path; authenticated management collectors and optional agents are later possibilities.
 
@@ -16,7 +16,7 @@ The first device platform is Linux iproute2 JSON; the stack is Python 3.12+ with
 
 ## Start the application
 
-Extract the runnable package and double-click `Start.cmd` on Windows. Python 3.12+ is required; the launcher can also use the installed Codex Python runtime. On macOS/Linux run `sh start.sh`. No package installation, scanner installation or Internet connection is needed at runtime.
+Extract the runnable package and double-click `Start.cmd` on Windows. Python 3.12+ is required; the launcher can also use the installed Codex Python runtime. On macOS/Linux run `sh start.sh`. Core import and ordinary web tools need no third-party Python runtime packages; native HTTPS interception additionally requires cryptography, and the isolated browser requires Node/Playwright/Edge. No Burp license/application is needed. See [native setup](docs/web-tools.md). Imports need no network; deliberate live tools contact only configured scoped targets.
 
 From a terminal in the repository: `python -m atlas.server`. Open **http://127.0.0.1:8765**. The terminal must remain running; Ctrl+C closes the server, and saved workspaces remain available when it restarts. Use `--port 8766` if the default port is occupied. Do not expose or reverse-proxy this local server onto a network.
 
@@ -25,6 +25,10 @@ Create a workspace, record engagement scope, then choose **Import results**. Pre
 Version 0.1.1 has bounded actual NorthGate Nmap/Linux/manual verification and corrects scanner-forced host status: `up`/`user-set` is a configured assumption with unknown reachability, while open/filtered port results remain distinct. Historical observations stay intact; new derivations use adapter revision 2. See [Live validation](docs/live-validation.md).
 
 The **synthetic example** demonstrates all six inputs without contacting targets. See [Getting started](GETTING_STARTED.md) for storage, backup, cleanup and capture instructions, and [Verification](docs/verification.md) for actual test evidence and limits.
+
+## Native web tools
+
+Open **Web workbench**, set exact owned origins/path scope and limits, then choose crawl/paths, request editing/comparison, selected-parameter tests, interception, authenticated browser or explicit scanner checks. Results feed the same evidence/map/review/reports. Imports never start collection. Metadata is the default; credentials/CA private keys stay transient. Schema 2 automatically backs up schema-1 data before upgrading and keeps unfinished runs interrupted after restart. [Setup, retention and recovery](docs/web-tools.md), [exact coverage and remaining work](docs/native-web-coverage.md), [security review](docs/web-security.md).
 
 ## Verify a checkout
 
@@ -46,6 +50,9 @@ Run `python -m unittest discover -s tests -v`. These use synthetic fixtures and 
 | [Getting started](GETTING_STARTED.md) | Launch, imports, evidence handling, backups and cleanup |
 | [Verification](docs/verification.md) | Executed checks, package traceability and live-lab limits |
 | [Live validation](docs/live-validation.md) | Restored connector, actual input coverage, workflow checks and the fault corrected |
+| [Native web setup](docs/web-tools.md) | Collection, interception/browser dependencies, scope and recovery |
+| [Capability matrix](docs/native-web-coverage.md) | Six areas, exact checks, broader inventory and unfinished acceptance |
+| [Native verification](docs/native-web-verification.md) | Actual local/live/package evidence and limits |
 | [Agent instructions](AGENTS.md) | Rules for future automated contributors |
 
 ## Licensing and sensitive material

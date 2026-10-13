@@ -282,6 +282,22 @@ class APITests(unittest.TestCase):
     def test_headers_and_invalid_input(self):
         _,headers,_=self.request("GET","/");self.assertIn("frame-ancestors 'none'",headers["content-security-policy"]);self.assertIn("HttpOnly",headers["set-cookie"])
         status,_,_=self.request("POST","/api/preview",{"content":"<broken","source":"nmap"},cookie=True,auth=True);self.assertEqual(status,400)
+    def test_native_request_auth_scope_and_workspace_boundaries(self):
+        from test_web_tools import fixture_server
+        target=fixture_server();url=f'http://127.0.0.1:{target.server_address[1]}/'
+        try:
+            w=self.store.create('Native API synthetic','Owned local fixture')
+            payload={'workspace':w['id'],'config':{'url':url,'authorized':True}}
+            self.assertEqual(self.request('POST','/api/web/request',payload,cookie=True)[0],403)
+            self.assertEqual(self.request('POST','/api/web/request',payload,cookie=True,auth=True,extra={'Origin':'https://evil.test'})[0],403)
+            self.assertEqual(target.seen,[])
+            rejected={**payload,'config':{**payload['config'],'request_url':'http://127.0.0.1:1/escape'}}
+            self.assertEqual(self.request('POST','/api/web/request',rejected,cookie=True,auth=True)[0],400);self.assertEqual(target.seen,[])
+            status,_,capture=self.request('POST','/api/web/request',payload,cookie=True,auth=True);self.assertEqual(status,200);self.assertEqual(target.seen,['/'])
+            other=self.store.create('Other native','Owned fixture')
+            self.assertEqual(self.request('POST','/api/web/compare',{'workspace':other['id'],'left':capture['capture_id'],'right':capture['capture_id']},cookie=True,auth=True)[0],400)
+            self.assertEqual(self.request('GET','/api/web/status?workspace='+w['id'])[0],403)
+        finally:target.shutdown();target.server_close()
 
 
 if __name__=="__main__":unittest.main()

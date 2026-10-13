@@ -14,6 +14,7 @@ import webbrowser
 from . import __version__
 from .importers import ImportProblem, parse, parse_json, MAX_BYTES
 from .store import Store, html_report
+from .web_tools import WebTools
 
 STATIC = Path(__file__).parent / "static"
 ROOT = Path(__file__).parent.parent
@@ -27,6 +28,11 @@ class AtlasServer(ThreadingHTTPServer):
         self.store = store
         self.session = secrets.token_urlsafe(32)
         self.nonce = secrets.token_urlsafe(32)
+        self.web = WebTools(store,self.server_address[1])
+
+    def server_close(self):
+        self.web.shutdown()
+        super().server_close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -66,13 +72,22 @@ class Handler(BaseHTTPRequestHandler):
         if not self.trusted_host():
             return self.respond({"error": "Unrecognized local host."}, 403)
         path = urlsplit(self.path).path
-        if path in ("/", "/app.js", "/styles.css"):
-            file = STATIC / {"/": "index.html", "/app.js": "app.js", "/styles.css": "styles.css"}[path]
-            mime = {"/": "text/html", "/app.js": "text/javascript", "/styles.css": "text/css"}[path]
+        if path in ("/", "/app.js", "/web-tools.js", "/web-tools.html", "/styles.css"):
+            file = STATIC / {"/": "index.html", "/app.js": "app.js", "/web-tools.js":"web-tools.js", "/web-tools.html":"web-tools.html", "/styles.css": "styles.css"}[path]
+            mime = {"/": "text/html", "/app.js": "text/javascript", "/web-tools.js":"text/javascript", "/web-tools.html":"text/html", "/styles.css": "text/css"}[path]
             return self.respond(file.read_bytes(), mime=mime, cookie=path == "/")
         if not self.authenticated():
             return self.respond({"error": "Open the local application first."}, 403)
         try:
+            if path in ('/api/web/status','/api/web/ca'):
+                query=parse_qs(urlsplit(self.path).query);workspace=query.get('workspace',[''])[0]
+                self.server.store.get(workspace)
+                proxies=[p for p in self.server.web.proxies.values() if p.workspace==workspace]
+                if path=='/api/web/ca':
+                    proxy=next((p for p in proxies if p.run['id']==query.get('id',[''])[0]),None)
+                    if not proxy:raise ImportProblem('Proxy not found in this workspace.')
+                    return self.respond(proxy.certificates.pem,mime='application/x-pem-file',attachment='atlas-isolated-proxy-ca.pem')
+                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace]})
             if path == "/api/session":
                 return self.respond({"nonce": self.server.nonce, "version": __version__, "storage": str(self.server.store.path), "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
             if path == "/api/workspaces":
@@ -112,9 +127,40 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             store = self.server.store
             workspace = data.get("workspace", "")
+            if path.startswith('/api/web/'):
+                store.get(workspace);tools=self.server.web;config=data.get('config',{})
+                if not isinstance(config,dict):raise ImportProblem('Tool configuration must be an object.')
+                if path=='/api/web/start':return self.respond(tools.start(workspace,data.get('kind'),config))
+                if path=='/api/web/stop':return self.respond(tools.stop(workspace,data.get('id')))
+                if path=='/api/web/request':return self.respond(tools.send(workspace,config))
+                if path=='/api/web/compare':return self.respond(tools.compare(workspace,data.get('left'),data.get('right')))
+                if path in ('/api/web/proxy/start','/api/web/browser/start'):
+                    if any(not p.closed for p in tools.proxies.values()):raise ImportProblem('Stop the current Atlas proxy/browser before starting another.')
+                    if path=='/api/web/proxy/start':
+                        from .web_proxy import Proxy
+                        proxy=Proxy(tools,workspace,config);tools.proxies[proxy.run['id']]=proxy
+                        return self.respond(proxy.status(include_token=True))
+                    from .browser_session import BrowserSession
+                    browser=BrowserSession(tools,workspace,config);tools.browsers[browser.proxy.run['id']]=browser;tools.proxies[browser.proxy.run['id']]=browser.proxy
+                    return self.respond(browser.status())
+                if path.startswith('/api/web/proxy/') or path=='/api/web/browser/stop':
+                    proxy=tools.proxies.get(data.get('id'))
+                    if not proxy or proxy.workspace!=workspace:raise ImportProblem('Proxy not found in this workspace.')
+                    if path in ('/api/web/proxy/stop','/api/web/browser/stop'):
+                        browser=tools.browsers.get(proxy.run['id'])
+                        if browser:browser.stop()
+                        else:proxy.close()
+                    elif path=='/api/web/proxy/intercept':
+                        if not isinstance(data.get('enabled'),bool):raise ImportProblem('Interception setting must be boolean.')
+                        proxy.intercept=data['enabled']
+                    elif path=='/api/web/proxy/decide':proxy.decide(data.get('pending_id'),data.get('action'),data.get('changes',{}))
+                    else:raise ImportProblem('Unknown proxy action.')
+                    return self.respond(proxy.status())
+                return self.respond({'error':'Unknown web tool action.'},404)
             if path == "/api/create":
                 return self.respond(Store.view(store.create(data.get("name"), data.get("scope", ""))))
             if path == "/api/delete":
+                if any(j['workspace']==workspace and j['thread'].is_alive() for j in self.server.web.jobs.values()) or any(p.workspace==workspace and not p.closed for p in self.server.web.proxies.values()):raise ImportProblem('Stop active web runs, browsers and proxies before deleting this workspace.')
                 store.delete(workspace, data.get("confirmation"))
                 return self.respond({"deleted": True})
             if path in ("/api/preview", "/api/import"):
@@ -178,7 +224,7 @@ def main():
         raise SystemExit("This data folder is already open in another Assessment Atlas process. Use that instance or a separate --data-dir.")
     server = AtlasServer(("127.0.0.1", args.port), Store(args.data_dir / "atlas.sqlite3"))
     url = f"http://127.0.0.1:{server.server_address[1]}"
-    print(f"Assessment Atlas {__version__}: {url}\nLocal storage: {server.store.path}\nPress Ctrl+C to close. No scans or external requests are performed.", flush=True)
+    print(f"Assessment Atlas {__version__}: {url}\nLocal storage: {server.store.path}\nPress Ctrl+C to close. Imports are inert; native web tools require deliberate target scope.", flush=True)
     if not args.no_open:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

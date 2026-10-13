@@ -1,4 +1,4 @@
-# Supported import formats — 0.1.1
+# Supported import formats — 0.2.0
 
 All six adapters are implemented and exercised with synthetic fixtures and direct browser uploads. Bounded actual Nmap 7.95, Linux iproute2 6.1.0 and corroborated manual intake are now verified in [Live validation](live-validation.md). Nessus/Nuclei/httpx remain synthetic-only; no exhaustive installed-tool/version matrix is claimed. Support is for the field shapes below, not every tool version or extension. Unknown/unmapped fields remain in the original file held by the operator; the UI gives a coverage warning. Import is atomic: malformed/unsupported structures fail without partially saving. No archive, PDF, Nessus .db, execution template, or executable content is accepted.
 
@@ -63,3 +63,11 @@ The UI downloads an editable template. Supported fields:
 Entity keys must be unique nonempty strings within a file. Kinds: device, interface, subnet, service, application, hop. Subjects/targets must reference declared keys. Observation kind is a descriptive typed relationship/fact label; use established meanings in [Architecture](architecture.md). Status: observed/inferred/unknown. Basis: configured/operational/active test/passive/manual. Optional findings require a known `subject`; title/severity/description/external ID are normalized as imported assertions, never independently validated claims. The source location refers to the JSON record index, so keep protected original references or explanation in the observation value when needed.
 
 There is no automatic import of exported `atlas-results/1` as a workspace backup; use stopped-database backup for recovery. Fixture: [manual.json](../fixtures/manual.json).
+
+## Atlas native web envelope (`atlas-web/1`)
+
+Auto-detection accepts a source in web-enumeration, web-workbench, web-payload, web-proxy, web-browser or web-scanner; 1–100 events per batch. A single event requires a stable ID. Each event supplies URL, captured_at, bounded request/response headers/text/body digests, optional links/parameter names/test/interception/issue evidence. Exact sources remain assertions for offline imports; native collector artifacts record their separate intake mode. Tool version and parser revision/time/vantage persist.
+
+Logical host/service/origin/resource/parameter entities and typed request/response/link/transport/test observations are normalized. Query values/sensitive headers are withheld; body excerpts are metadata-only by default or bounded best-effort redacted text when explicitly enabled. Known query, form and top-level JSON field names are retained without values. A reported link is unknown until separately fetched; failure stays unknown. Source issues are scanner-reported, never independently validated impact. Web resource kinds do not establish physical topology.
+
+Repeated identical events deduplicate; conflicting content under one ID is rejected. Imported envelopes do not run a proxy/browser/check or contact URLs. Native live request limits and per-tool semantics are in [Setup](web-tools.md); [Coverage](native-web-coverage.md) lists exact checks and unsupported families/protocols. Raw messages are transient, not retained originals; keep protected source evidence separately where available. [Synthetic web fixture](../fixtures/web.json) demonstrates inert manual import of the envelope.

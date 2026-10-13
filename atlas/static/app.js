@@ -44,6 +44,7 @@ function render() {
     $('health-summary').textContent = `${state.candidates.length} identity suggestions${state.candidates_limited?' (suggestion limit reached; manually select other candidates as needed)':''} · ${state.conflicts.length} sets of divergent observations. These remain visible until reviewed.`;
   }
   populateFilters(); renderGraph(); renderIdentities(); renderEvidence(); renderFindings(); renderRecords(); renderHistory(); renderExportSelection();
+  if(window.atlasWebRefresh)window.atlasWebRefresh();
 }
 function options(id, nodes, emptyText) { const select=clear(id); if(emptyText) select.append(new Option(emptyText,'')); for(const n of nodes) select.append(new Option(n.label + ' · ' + n.kind,n.id)); }
 function populateFilters() {
@@ -66,12 +67,14 @@ function graphData(w) {
 function svgEl(tag, attrs = {}, text = '') { const n=document.createElementNS(NS,tag); for(const [k,v] of Object.entries(attrs)) n.setAttribute(k,String(v)); n.textContent=text; return n; }
 function makeGraph(w,interactive=true) {
   const data=graphData(w); const svg=svgEl('svg',{xmlns:NS,role:'img','aria-label':'Evidence map. Select a node or typed connection to inspect its evidence.'});
-  const columns=[['device','hop'],['interface'],['service','application'],['subnet']];
+  const web=w.nodes.some(n=>n.kind.startsWith('web '));
+  const columns=web?[['device','hop'],['interface'],['service','application','web origin'],['web resource'],['subnet','web parameter']]:[['device','hop'],['interface'],['service','application'],['subnet']];
+  const viewWidth=columns.length*300;
   const points={}; const groups=columns.map(kinds=>data.nodes.filter(n=>kinds.includes(n.kind))); const rows=Math.max(3,...groups.map(g=>g.length));
-  const height=Math.max(450,rows*95+90); svg.setAttribute('viewBox',`0 0 1200 ${height}`); svg.setAttribute('data-height',height);
-  const width=interactive?Math.max(650,($('graph').clientWidth||1200)*zoom):1200;svg.setAttribute('width',width);svg.setAttribute('height',height*width/1200);
+  const height=Math.max(450,rows*95+90); svg.setAttribute('viewBox',`0 0 ${viewWidth} ${height}`); svg.setAttribute('data-height',height);
+  const width=interactive?Math.max(650,($('graph').clientWidth||1200)*zoom):1200;svg.setAttribute('width',width);svg.setAttribute('height',height*width/viewWidth);
   const defs=svgEl('defs');const marker=svgEl('marker',{id:'arrow',viewBox:'0 0 10 10',refX:10,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'}); marker.append(svgEl('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#6e8987'}));defs.append(marker);svg.append(defs);
-  groups.forEach((nodes,col)=>{const x=150+col*300;svg.append(svgEl('text',{x,y:30,'text-anchor':'middle',class:'column-label'},['DEVICES / HOPS','INTERFACES','SERVICES / APPLICATIONS','SUBNETS / ROUTES'][col]));nodes.forEach((n,row)=>points[n.id]={x,y:85+row*95});});
+  groups.forEach((nodes,col)=>{const x=150+col*300;svg.append(svgEl('text',{x,y:30,'text-anchor':'middle',class:'column-label'},(web?['DEVICES / HOPS','INTERFACES','SERVICES / ORIGINS','WEB RESOURCES','SUBNETS / PARAMETERS']:['DEVICES / HOPS','INTERFACES','SERVICES / APPLICATIONS','SUBNETS / ROUTES'])[col]));nodes.forEach((n,row)=>points[n.id]={x,y:85+row*95});});
   for(const edge of data.edges) {
     const a=points[edge.source],b=points[edge.target]; if(!a||!b) continue;
     const group=svgEl('g');const dx=b.x-a.x,dy=b.y-a.y,distance=Math.hypot(dx,dy)||1; const attrs={x1:a.x,y1:a.y,x2:b.x-dx/distance*30,y2:b.y-dy/distance*30,class:edge.status,'marker-end':'url(#arrow)'};
