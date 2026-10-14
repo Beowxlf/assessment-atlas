@@ -1,8 +1,8 @@
-/* Isolated native browsing worker. IPC carries proxy auth; never print it or page data. */
+/* Isolated native browsing worker. stdout is private parent IPC, never an application log. */
 'use strict';
 const readline=require('node:readline');
 const input=readline.createInterface({input:process.stdin});
-let browser=null,started=false,stopping=false;
+let browser=null,context=null,settings=null,started=false,stopping=false;
 async function stop(){stopping=true;if(browser){await browser.close();process.exit(0);}}
 function allowed(url,config){
   try{
@@ -16,12 +16,30 @@ function allowed(url,config){
 input.on('line',async line=>{
   try{
     const config=JSON.parse(line);
-    if(started){if(config.action==='stop')await stop();return;}
+    if(started){
+      if(config.action==='stop')await stop();
+      if(config.action==='cookies'&&context){
+        const cookies=[];const available=await context.cookies();
+        for(const origin of Object.keys(settings.origins)){
+          const u=new URL(origin);for(const cookie of available){
+            const domain=cookie.domain.replace(/^\./,'');
+            if(u.hostname!==domain&&!u.hostname.endsWith('.'+domain))continue;
+            if(cookie.partitionKey)continue;
+            const prefix=settings.origins[origin].replace(/\/$/,'')||'/';const path=cookie.path.replace(/\/$/,'')||'/';
+            if(prefix!=='/'&&path!=='/'&&prefix!==path&&!prefix.startsWith(path+'/')&&!path.startsWith(prefix+'/'))continue;
+            cookies.push({origin,name:cookie.name,value:cookie.value,path:cookie.path,secure:cookie.secure,expires:cookie.expires});
+          }
+        }
+        console.log(JSON.stringify({state:'cookies',id:config.id,cookies:cookies.length<=100?cookies:[],limit_exceeded:cookies.length>100}));
+      }
+      return;
+    }
     started=true;
+    settings=config;
     const {chromium}=require(process.env.ATLAS_PLAYWRIGHT_MODULE||'playwright');
     browser=await chromium.launch({channel:'msedge',headless:config.headless,args:['--proxy-bypass-list=<-loopback>','--ignore-certificate-errors-spki-list='+config.ca_spki,'--disable-quic','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],proxy:{server:'http://127.0.0.1:'+config.port,username:'atlas',password:config.password}});
     if(stopping){await stop();return;}
-    const context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
+    context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
     let blocked=0;
     await context.route('**/*',route=>{if(allowed(route.request().url(),config))return route.continue();console.log(JSON.stringify({state:'blocked',count:++blocked}));return route.abort('blockedbyclient');});
     if(context.routeWebSocket)await context.routeWebSocket('**/*',ws=>ws.close());

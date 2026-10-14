@@ -1,5 +1,11 @@
 # Native web trust boundaries and verification — 0.2.0
 
+## 0.3.0 additions
+
+The table below preserves the historical 0.2.0 review. Authenticated scans additionally enforce workspace-owned transient profiles, exact-origin cookie/header isolation, secure/path/expiry cookie rules, an anonymous-vs-protected session sentinel, periodic/unauthorized/final guards and at most two explicit-sequence refreshes. Login bodies are metadata, known session values are scrubbed from later excerpts, and sessions clear on expiry/discard/restart. Active proxy listeners and IPv4-mapped control/metadata addresses are excluded from scan transport. Custom literal rules, codecs and OpenAPI inventory execute no imported code or implicit network. Downstream response edits retain the original upstream evidence and manual modification labels. [Contract and residual limits](authenticated-scans.md), [decision](adr/0004-transient-authenticated-audits.md).
+
+Synthetic tests cover auth failure/loss/refresh, origin/workspace/cookie-path/Secure/expiry isolation, secret-free normalized DB/exports, CSRF hidden/header extraction and form/JSON escaping, controlled injection positive/fixed cases, source derivation preservation, response edits and live browser handoff over verified fixture TLS. No independent security audit or general scanner-accuracy benchmark is claimed.
+
 Owner-authorized local product work, synthetic fixture tests and bounded owned NorthGate GET collection. This is an engineering review, not independent penetration testing or a compliance certification.
 
 | Concrete threat | Implemented boundary | Verification and residual |

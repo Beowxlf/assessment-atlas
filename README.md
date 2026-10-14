@@ -2,7 +2,7 @@
 
 A unified workspace for authorized security assessments that grows a network map from evidence gathered during an engagement.
 
-**Status: runnable native web workbench, version 0.2.0, October 12, 2026.** A local application with SQLite persistence, six legacy import formats plus inert web evidence, an interactive network/web map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. Native scoped crawling, request edit/replay/compare, selected-parameter tests, HTTP/HTTPS interception, isolated authenticated JavaScript browsing and original response checks are implemented. No device agents, external Burp bridge, remote hosting, paid components or CI workflow are included. Full Burp feature/scanner parity remains unfinished; see the [capability and acceptance matrix](docs/native-web-coverage.md).
+**Status: runnable native web workbench, version 0.3.0, October 13, 2026.** A local application with SQLite persistence, six legacy import formats plus inert web evidence, an interactive network/web map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The GitHub repository is private. Native scoped crawling, request edit/replay/compare, verified authenticated crawl-and-audit, query/form/JSON checks, multi-position payloads, request/text-response interception, isolated JavaScript browser session handoff, codecs, token sample measurements and OpenAPI inventory are implemented. No device agents, external Burp bridge, remote hosting, paid components or CI workflow are included. Full Burp feature/scanner parity remains unfinished; see the [capability and acceptance matrix](docs/native-web-coverage.md).
 
 The destination is one workspace for topology, hosts and services, findings, access achieved, unanswered questions, testing history, and reports. Source-specific adapters should bring heterogeneous evidence into one common model. Offline imports are a first-class path; authenticated management collectors and optional agents are later possibilities.
 
@@ -29,6 +29,8 @@ The **synthetic example** demonstrates all six inputs without contacting targets
 ## Native web tools
 
 Open **Web workbench**, set exact owned origins/path scope and limits, then choose crawl/paths, request editing/comparison, selected-parameter tests, interception, authenticated browser or explicit scanner checks. Results feed the same evidence/map/review/reports. Imports never start collection. Metadata is the default; credentials/CA private keys stay transient. Schema 2 automatically backs up schema-1 data before upgrading and keeps unfinished runs interrupted after restart. [Setup, retention and recovery](docs/web-tools.md), [exact coverage and remaining work](docs/native-web-coverage.md), [security review](docs/web-security.md).
+
+[Authenticated scans and advanced workflow](docs/authenticated-scans.md) explains transient cookie/bearer/login-sequence sessions, session-loss stopping, original checks, API requests, baseline/control finding evidence and exact limits. New findings feed the existing assessment directly. Schema remains 2; no database migration is required from 0.2.0.
 
 ## Verify a checkout
 

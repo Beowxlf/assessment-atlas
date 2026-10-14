@@ -1,24 +1,32 @@
 'use strict';
-let webWorkspace='',webCaptures=[],webPolling=false;
+let webWorkspace='',webCaptures=[],webPolling=false,webBrowsers=[];
 function webLines(id){return $(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);}
 function webConfig(){
   needsWorkspace();
   return {url:$('web-url').value,path_prefix:$('web-prefix').value,extra_origins:webLines('web-origins'),exclude_paths:webLines('web-exclude'),ca_pem:$('web-ca').value,authorized:$('web-authorized').checked,vantage:$('web-vantage').value,namespace:$('web-namespace').value,retain_body:$('web-retain').checked,max_requests:Number($('web-limit').value),max_seconds:Number($('web-seconds').value),delay_ms:Number($('web-delay').value),max_depth:Number($('web-depth').value),proxy_port:Number($('web-proxy-port').value)};
 }
 function webRequestConfig(){return {...webConfig(),request_url:$('web-request-url').value||$('web-url').value,method:$('web-method').value,headers:$('web-headers').value,body:$('web-body').value};}
+function webJSON(id){return $(id).value.trim()?JSON.parse($(id).value):[];}
+function webAuthConfig(){return {...webConfig(),session_label:$('web-session-label').value,auth:{origins:webLines('web-auth-origins').length?webLines('web-auth-origins'):[new URL($('web-url').value).origin],check_url:$('web-auth-check').value,success_text:$('web-auth-marker').value,headers:$('web-auth-headers').value,steps:webJSON('web-auth-steps')}};}
+function webScanConfig(){return {...webConfig(),session_id:$('web-session').value,checks:[...document.querySelectorAll('#web-checks input:checked')].map(n=>n.value),audit_crawl:$('web-audit-crawl').checked,active_audit:$('web-active-audit').checked,protected_marker:$('web-protected-marker').value,exclude_parameters:webLines('web-exclude-parameters'),audit_requests:webJSON('web-audit-requests'),custom_checks:webJSON('web-custom-checks')};}
+function webClearAuth(){for(const id of ['web-auth-headers','web-auth-steps','web-login-user','web-login-password'])$(id).value='';}
 async function webRefresh(){
   if(!$('web-runs'))return;
   if(webWorkspace!==(state?.id||'')){
     webWorkspace=state?.id||'';webCaptures=[];$('web-scope').reset();$('web-headers').value='';$('web-body').value='';$('web-url').value='';$('web-request-url').value='';clear('web-compare-left');clear('web-compare-right');clear('web-request-result');clear('web-comparison');clear('web-proxy-credentials');clear('web-intercepts');
+    webClearAuth();for(const id of ['web-auth-check','web-auth-marker','web-auth-origins','web-protected-marker','web-audit-requests','web-custom-checks','web-schema','web-positions','web-utility-input','web-exclude-parameters'])$(id).value='';for(const id of ['web-session-result','web-schema-result','web-utility-result'])clear(id);clear('web-session').append(new Option('Unauthenticated',''));webBrowsers=[];
+    for(const id of ['web-login-url','web-login-preflight','web-login-csrf','web-login-bearer'])$(id).value='';$('web-session-label').value='Assessment session';$('web-active-audit').checked=false;document.querySelectorAll('#web-checks input').forEach(input=>input.checked=input.value==='passive');
   }
   if(!state){clear('web-runs').append(el('p','Create or select a workspace before configuring live tools.','muted'));return;}
   if(webPolling)return;webPolling=true;
   try{
     const id=state.id;const result=await api('web/status?workspace='+encodeURIComponent(id));if(state?.id!==id)return;
+    webBrowsers=result.browsers;const selectedSession=$('web-session').value;clear('web-session').append(new Option('Unauthenticated',''));for(const session of result.sessions||[])$('web-session').append(new Option(session.label+' · '+Math.ceil(session.remaining_seconds/60)+' minutes',session.id));if((result.sessions||[]).some(s=>s.id===selectedSession))$('web-session').value=selectedSession;
     clear('web-runs');
     for(const r of [...result.runs].reverse()){
       const row=el('div','','list-item');row.append(badge(r.state),el('strong',r.kind+' · '+r.requests+' requests'),el('p',r.reason||'Bounded collection in progress','subline'),button('Inspect plan and evidence references',()=>details('Web run '+r.kind,[r])));
-      if(['running','queued'].includes(r.state)&&['crawl','payload','scanner'].includes(r.kind))row.append(button('Stop run',async()=>{await api('web/stop',{workspace:id,id:r.id});message('Stop requested. An in-flight request may finish; completed evidence remains saved.');}));
+      if(r.audited_endpoints!==undefined)row.append(el('p',r.audited_endpoints+' endpoints audited · '+(r.findings||0)+' findings saved · '+(r.session_refreshes||0)+' session refreshes','subline'));
+      if(['running','queued'].includes(r.state)&&['crawl','payload','scanner','matrix'].includes(r.kind))row.append(button('Stop run',async()=>{await api('web/stop',{workspace:id,id:r.id});message('Stop requested. An in-flight request may finish; completed evidence remains saved.');}));
       $('web-runs').append(row);
     }
     if(!result.runs.length)$('web-runs').append(el('p','No native collection runs yet.','muted'));
@@ -26,10 +34,16 @@ async function webRefresh(){
     for(const p of result.proxies){
       const row=el('div','','list-item');row.append(badge(p.state),el('strong','127.0.0.1:'+p.port+' · '+p.requests+' requests'));
       if(p.state==='running')row.append(button(p.intercept?'Turn interception off':'Intercept live requests',async()=>{await api('web/proxy/intercept',{workspace:id,id:p.id,enabled:!p.intercept});await webRefresh();}),button('Stop proxy / browser',async()=>{await api('web/proxy/stop',{workspace:id,id:p.id});clear('web-proxy-credentials');await webRefresh();}));
+      if(p.state==='running')row.append(button(p.intercept_response?'Turn response interception off':'Intercept text responses',async()=>{await api('web/proxy/intercept-response',{workspace:id,id:p.id,enabled:!p.intercept_response});await webRefresh();}));
       $('web-proxy-status').append(row);
       for(const item of p.pending){
         pending.add(item.id);if(document.getElementById('intercept-'+item.id))continue;
         const card=el('article','','card');card.id='intercept-'+item.id;card.append(el('h3',item.method+' '+item.url),el('p','Transient request editor. No credentials or original message are saved by this editor.','muted'));
+        if(item.phase==='response'){
+          card.querySelector('p').textContent='Upstream evidence is already saved. This edited downstream response will be labeled as an operator modification.';const status=el('input');status.type='number';status.min='200';status.max='599';status.value=item.status;const headers=el('textarea');headers.value=item.headers.map(h=>h.name+': '+h.value).join('\n');const body=el('textarea');body.value=item.body;
+          for(const [name,input] of [['Response status',status],['Response headers',headers],['Response body',body]]){const label=el('label',name);label.append(input);card.append(label);}
+          card.append(button('Forward edited response',async()=>{await api('web/proxy/decide',{workspace:id,id:p.id,pending_id:item.id,action:'forward',changes:{status:Number(status.value),headers:headers.value,body:body.value}});card.remove();}),button('Drop response',async()=>{await api('web/proxy/decide',{workspace:id,id:p.id,pending_id:item.id,action:'drop'});card.remove();}));$('web-intercepts').append(card);continue;
+        }
         const method=el('select');for(const name of ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'])method.append(new Option(name,name));method.value=item.method;
         const headers=el('textarea');headers.value=item.headers.map(h=>h.name+': '+h.value).join('\n');const body=el('textarea');body.value=item.body;
         for(const [name,input] of [['Method',method],['Headers',headers],['Body',body]]){const label=el('label',name);label.append(input);card.append(label);}
@@ -56,7 +70,24 @@ run(async()=>{
   $('web-request').addEventListener('submit',e=>{e.preventDefault();run(async()=>{const result=await api('web/request',{workspace:state?.id,config:webRequestConfig()});webCaptures.push({id:result.capture_id,label:result.event.request.method+' '+result.event.url+' · '+(result.event.response?.status||'failed')});for(const select of ['web-compare-left','web-compare-right']){clear(select);for(const capture of webCaptures)$(select).append(new Option(capture.label,capture.id));}$('web-compare-right').value=result.capture_id;clear('web-request-result').append(el('h3','Captured response'),el('pre',JSON.stringify(result.event.response||{error:result.event.error},null,2)));message('Bounded response inspected; normalized scoped evidence saved.');await webRefresh();});});
   $('web-compare').addEventListener('click',()=>run(async()=>{const result=await api('web/compare',{workspace:state?.id,left:$('web-compare-left').value,right:$('web-compare-right').value});$('web-comparison').textContent=(result.identical?'Responses are identical.':result.diff)+'\n'+result.limit;}));
   $('web-payload').addEventListener('submit',e=>{e.preventDefault();run(async()=>{await api('web/start',{workspace:state?.id,kind:'payload',config:{...webRequestConfig(),parameter:$('web-parameter').value,parameter_location:$('web-parameter-location').value,payloads:webLines('web-payloads')}});message('Selected-parameter baseline and bounded tests started.');await webRefresh();});});
-  $('web-scanner-start').addEventListener('click',()=>run(async()=>{await api('web/start',{workspace:state?.id,kind:'scanner',config:webConfig()});message('Original response checks started; findings remain tool-reported.');await webRefresh();},$('web-scanner-start')));
+  $('web-scanner-start').addEventListener('click',()=>run(async()=>{await api('web/start',{workspace:state?.id,kind:'scanner',config:webScanConfig()});message('Crawl and audit started. Findings feed this assessment directly; review and validation remain explicit.');await webRefresh();},$('web-scanner-start')));
+  async function keepSession(browser){const config=webAuthConfig();const active=webBrowsers.filter(b=>b.state==='running');if(browser&&active.length!==1)throw new Error('Open one isolated assessment browser and finish signing in first.');const result=await api(browser?'web/browser/session':'web/session/save',{workspace:state?.id,id:browser?active[0].id:undefined,config});webClearAuth();await webRefresh();$('web-session').value=result.id;clear('web-session-result').append(el('p','Session kept transiently and selected. It is validated against the protected marker when a scan starts.'));}
+  $('web-login-build').addEventListener('click',()=>run(async()=>{
+    const login=$('web-login-url').value,username=$('web-login-user').value,password=$('web-login-password').value,userField=$('web-login-user-field').value,passwordField=$('web-login-password-field').value;
+    if(!login||!username||!password||!userField||!passwordField||userField===passwordField)throw new Error('Supply a login URL, credentials and two distinct field names.');
+    const steps=[],body={[userField]:username,[passwordField]:password},csrf=$('web-login-csrf').value,preflight=$('web-login-preflight').value;
+    if(csrf){if(!preflight)throw new Error('Supply the pre-login page URL for the hidden token.');steps.push({url:preflight,extract:{csrf:{from:'hidden',name:csrf}}});body[csrf]='{{csrf}}';}
+    const form=$('web-login-format').value==='form';const step={url:login,method:'POST',headers:[{name:'Content-Type',value:form?'application/x-www-form-urlencoded':'application/json'}],body:form?new URLSearchParams(body).toString():JSON.stringify(body)};
+    const bearer=$('web-login-bearer').value;if(bearer){step.extract={bearer:{from:'json',name:bearer}};$('web-auth-headers').value='Authorization: Bearer {{bearer}}';}steps.push(step);
+    $('web-auth-steps').value=JSON.stringify(steps,null,2);$('web-auth-origins').value=[...new Set([new URL($('web-url').value).origin,new URL(login).origin,...(preflight?[new URL(preflight).origin]:[])])].join('\n');clear('web-session-result').append(el('p','Login sequence prepared locally. Keep the transient session to select it for scanning.'));
+  }));
+  $('web-session-save').addEventListener('click',()=>run(()=>keepSession(false),$('web-session-save')));
+  $('web-session-browser').addEventListener('click',()=>run(()=>keepSession(true),$('web-session-browser')));
+  $('web-session-forget').addEventListener('click',()=>run(async()=>{if(!$('web-session').value)throw new Error('Select a session to discard.');await api('web/session/forget',{workspace:state?.id,id:$('web-session').value});webClearAuth();await webRefresh();clear('web-session-result').append(el('p','Selected session discarded. Running scans keep their own copy until they stop.'));}));
+  $('web-findings-open').addEventListener('click',()=>run(async()=>{await load(state.id);show('findings');}));
+  $('web-matrix-start').addEventListener('click',()=>run(async()=>{await api('web/start',{workspace:state?.id,kind:'matrix',config:{...webRequestConfig(),session_id:$('web-session').value,active_audit:$('web-active-audit').checked,checks:['passive'],positions:webJSON('web-positions'),attack_mode:$('web-attack-mode').value,processor:$('web-processor').value}});message('Baseline and bounded multi-position tests started.');await webRefresh();}));
+  $('web-utility-run').addEventListener('click',()=>run(async()=>{needsWorkspace();const operation=$('web-utility-operation').value;const result=await api('web/utility',{workspace:state.id,operation,text:$('web-utility-input').value,samples:operation==='tokens'?webLines('web-utility-input'):undefined});$('web-utility-result').textContent=result.result??JSON.stringify(result,null,2);}));
+  $('web-schema-load').addEventListener('click',()=>run(async()=>{const result=await api('web/schema',{workspace:state?.id,config:webConfig(),schema:JSON.parse($('web-schema').value)});$('web-schema-result').textContent=JSON.stringify(result,null,2);$('web-audit-requests').value=JSON.stringify(result.audit_requests,null,2);message('API requests previewed. Review them before starting an audit.');}));
   $('web-proxy-start').addEventListener('click',()=>run(async()=>{const result=await api('web/proxy/start',{workspace:state?.id,config:webConfig()});clear('web-proxy-credentials').append(el('p','Use only a separate test browser. Proxy credentials are transient and are not exported.'),el('pre','Proxy: http://127.0.0.1:'+result.port+'\nUsername: '+result.username+'\nPassword: '+result.password+'\nPublic CA SHA-256: '+result.CA_sha256),button('Download this public CA',async()=>{const response=await fetch('/api/web/ca?workspace='+encodeURIComponent(state.id)+'&id='+result.id);if(!response.ok)throw new Error('CA download failed');download(await response.text(),'atlas-isolated-proxy-ca.pem','application/x-pem-file');}));message('Scoped loopback proxy started. Existing browser/Burp trust and proxy settings are untouched.');await webRefresh();},$('web-proxy-start')));
   $('web-browser-start').addEventListener('click',()=>run(async()=>{await api('web/browser/start',{workspace:state?.id,config:webConfig()});message('Atlas-owned browser is starting. Sign in there and browse within the explicit scope.');await webRefresh();},$('web-browser-start')));
   $('web-refresh').addEventListener('click',()=>run(async()=>{needsWorkspace();await load(state.id);show('map');message('Showing collected network and web evidence. Logical resources are not physical wiring.');}));

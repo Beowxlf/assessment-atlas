@@ -92,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
                     proxy=next((p for p in proxies if p.run['id']==query.get('id',[''])[0]),None)
                     if not proxy:raise ImportProblem('Proxy not found in this workspace.')
                     return self.respond(proxy.certificates.pem,mime='application/x-pem-file',attachment='atlas-isolated-proxy-ca.pem')
-                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace]})
+                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace)})
             if path == "/api/session":
                 return self.respond({"nonce": self.server.nonce, "version": __version__, "storage": str(self.server.store.path), "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
             if path == "/api/workspaces":
@@ -139,6 +139,25 @@ class Handler(BaseHTTPRequestHandler):
                 if path=='/api/web/stop':return self.respond(tools.stop(workspace,data.get('id')))
                 if path=='/api/web/request':return self.respond(tools.send(workspace,config))
                 if path=='/api/web/compare':return self.respond(tools.compare(workspace,data.get('left'),data.get('right')))
+                if path=='/api/web/utility':
+                    from .web_advanced import transform,token_measurements
+                    if data.get('operation')=='tokens':return self.respond(token_measurements(data.get('samples')))
+                    return self.respond({'result':transform(data.get('text'),data.get('operation')),'retention':'Transient utility; nothing saved or executed.'})
+                if path=='/api/web/schema':
+                    from .web_advanced import api_inventory
+                    from .web_transport import Scope
+                    return self.respond(api_inventory(data.get('schema'),Scope(config,self.server.server_address[1],resolve=False)))
+                if path=='/api/web/session/save':return self.respond(tools.save_session(workspace,config))
+                if path=='/api/web/session/forget':return self.respond(tools.forget_session(workspace,data.get('id')))
+                if path=='/api/web/browser/session':
+                    browser=tools.browsers.get(data.get('id'))
+                    if not browser or browser.workspace!=workspace:raise ImportProblem('Active browser not found in this workspace.')
+                    cookies=browser.snapshot()
+                    from .web_evidence import web_url
+                    settings=config.get('auth',{});origins=settings.get('origins',[web_url(config.get('url',''))[0]])
+                    config={**config,'auth':{k:v for k,v in settings.items() if k in ('origins','check_url','success_text','success_status')}}
+                    config['auth']['cookies']=[c for c in cookies if c.get('origin') in origins]
+                    return self.respond(tools.save_session(workspace,config))
                 if path in ('/api/web/proxy/start','/api/web/browser/start'):
                     if any(not p.closed for p in tools.proxies.values()):raise ImportProblem('Stop the current Atlas proxy/browser before starting another.')
                     if path=='/api/web/proxy/start':
@@ -158,6 +177,9 @@ class Handler(BaseHTTPRequestHandler):
                     elif path=='/api/web/proxy/intercept':
                         if not isinstance(data.get('enabled'),bool):raise ImportProblem('Interception setting must be boolean.')
                         proxy.intercept=data['enabled']
+                    elif path=='/api/web/proxy/intercept-response':
+                        if not isinstance(data.get('enabled'),bool):raise ImportProblem('Interception setting must be boolean.')
+                        proxy.intercept_response=data['enabled']
                     elif path=='/api/web/proxy/decide':proxy.decide(data.get('pending_id'),data.get('action'),data.get('changes',{}))
                     else:raise ImportProblem('Unknown proxy action.')
                     return self.respond(proxy.status())
@@ -167,6 +189,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/delete":
                 if any(j['workspace']==workspace and j['thread'].is_alive() for j in self.server.web.jobs.values()) or any(p.workspace==workspace and not p.closed for p in self.server.web.proxies.values()):raise ImportProblem('Stop active web runs, browsers and proxies before deleting this workspace.')
                 store.delete(workspace, data.get("confirmation"))
+                for row in self.server.web.session_list(workspace):self.server.web.forget_session(workspace,row['id'])
                 return self.respond({"deleted": True})
             if path in ("/api/preview", "/api/import"):
                 context = data.get("context", {})

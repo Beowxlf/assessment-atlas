@@ -13,6 +13,7 @@ from urllib.parse import urljoin, unquote, urlsplit, parse_qsl
 from .importers import ImportProblem
 from .web_evidence import web_url
 from .store import now
+from . import __version__
 
 MAX_BODY=65536
 METHODS=('GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS')
@@ -59,7 +60,7 @@ class Scope:
                 except OSError:raise ImportProblem('Scope hostname resolution failed.') from None
                 if not addresses or len(addresses)>16:raise ImportProblem('Scope resolution returned no usable bounded address set.')
                 for address in addresses:
-                    ip=ipaddress.ip_address(address)
+                    parsed=ipaddress.ip_address(address);ip=parsed.ipv4_mapped or parsed if isinstance(parsed,ipaddress.IPv6Address) else parsed
                     if ip.is_link_local or ip.is_multicast or ip.is_unspecified or (ip.is_loopback and port==atlas_port):raise ImportProblem('Metadata/link-local/multicast/unspecified and Atlas control targets are excluded.')
                 self.pins[allowed]=addresses
         ca=config.get('ca_pem','')
@@ -72,7 +73,8 @@ class Scope:
     def check(self,url):
         origin,path,_,_,_=web_url(url)
         if origin not in self.origins or not path_contains(self.origins[origin],path) or any(path_contains(p,path) for p in self.excluded):raise ImportProblem('URL is outside the explicit origin/path scope or is excluded.')
-        if any(ipaddress.ip_address(a).is_loopback for a in self.pins.get(origin,[])) and web_url(url)[4] in self.forbidden_ports:raise ImportProblem('Atlas and interception control listeners cannot be targets.')
+        addresses=[ipaddress.ip_address(a) for a in self.pins.get(origin,[])]
+        if any((a.ipv4_mapped or a).is_loopback if isinstance(a,ipaddress.IPv6Address) else a.is_loopback for a in addresses) and web_url(url)[4] in self.forbidden_ports:raise ImportProblem('Atlas and interception control listeners cannot be targets.')
         return origin
 
     def summary(self):
@@ -97,7 +99,7 @@ def request_headers(value):
         if name.lower() in {k.lower() for k in result}:raise ImportProblem('Duplicate request headers are not supported.')
         result[name]=content
     result['Accept-Encoding']='identity';result['Connection']='close'
-    if not any(k.lower()=='user-agent' for k in result):result['User-Agent']='AssessmentAtlas/0.2.0 scoped web tools'
+    if not any(k.lower()=='user-agent' for k in result):result['User-Agent']='AssessmentAtlas/'+__version__+' scoped web tools'
     return result
 
 

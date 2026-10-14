@@ -67,6 +67,12 @@ def message_excerpt(message, mode):
         body=re.sub(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*','Bearer [redacted]',body)
         # Structured JSON/form values with sensitive names never become retained secrets.
         body=re.sub(r'(?i)(["\']?(?:password|passwd|secret|token|api.?key|csrf|session)["\']?\s*[:=]\s*)["\']?[^\s,;&<>"\']+',r'\1[redacted]',body)
+        def hidden_input(match):
+            tag=match.group()
+            if re.search(r'(?i)\btype\s*=\s*["\']?hidden\b',tag) or re.search(r'(?i)\bname\s*=\s*["\']?[^\s>]*?(?:password|secret|token|csrf|session)',tag):
+                tag=re.sub(r'(?i)(\bvalue\s*=\s*)("[^"]*"|\'[^\']*\'|[^\s>]+)',r'\1"[redacted]"',tag)
+            return tag
+        body=re.sub(r'(?i)<input\b[^>]*>',hidden_input,body)
         result['body']=clean(body)[:MAX_TEXT]
         result['excerpt_truncated']=len(body)>MAX_TEXT or bool(message.get('truncated')) or bool(message.get('excerpt_truncated'))
     else:result['body']='[not collected: metadata mode]'
@@ -78,7 +84,7 @@ def normalize(text,context,source):
     if not isinstance(data,dict) or data.get('format')!='atlas-web/1':raise ImportProblem('Expected atlas-web/1.')
     mode=data.get('capture_mode','metadata')
     if mode not in ('metadata','redacted'):raise ImportProblem('Capture mode must be metadata or redacted.')
-    b=Bundle(source,context);b.source_version=clean(data.get('tool_version','unknown'))
+    b=Bundle(source,context);b.source_version=clean(data.get('tool_version','unknown'));b.adapter_version='3'
     events=items(data.get('events',[]),'events')
     if not 1<=len(events)<=100:raise ImportProblem('Web batches require 1–100 events.')
     if len(events)==1:
@@ -125,6 +131,10 @@ def normalize(text,context,source):
         if event.get('error'):b.obs(resource,'web request failure',{'error':clean(event['error'])},loc,'unknown',basis,time=when)
         if event.get('interception'):b.obs(resource,'live request interception',event['interception'],loc,basis='manual',time=when)
         if event.get('test'):b.obs(resource,'selected parameter test',event['test'],loc,basis='active test',time=when)
+        if event.get('authentication'):
+            auth=event['authentication']
+            if not isinstance(auth,dict):raise ImportProblem('Authentication evidence must be an object.')
+            b.obs(resource,'web authentication context',{k:auth[k] for k in ('mode','session_verified','purpose','generation') if k in auth},loc,basis='active test',time=when)
         if event.get('connected_address'):b.obs(resource,'HTTP transport observation',{'connected_address':event['connected_address'],'elapsed_ms':event.get('elapsed_ms'),'upstream_tls':event.get('upstream_tls'),'peer_certificate_sha256':event.get('peer_certificate_sha256'),'source_capture_id':event.get('source_capture_id',event.get('id')),'limit':'One scoped transport observation, not identity proof. HTTPS upstream hostname/CA checks remain enabled. Check derivations share source capture IDs and are not additional requests.'},loc,basis=basis,time=when)
         for link in items(event.get('links',[]),'links')[:100]:
             if not isinstance(link,dict):raise ImportProblem('Invalid web link.')

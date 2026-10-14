@@ -1,8 +1,14 @@
-# Native web capability and acceptance matrix — 0.2.0
+# Native web capability and acceptance matrix — 0.3.0
 
 Owner direction: native Burp-style capabilities **inside Assessment Atlas**. External Burp piping/extensions are no longer the requested direction and are not delivered. The six requested areas are minimum categories, not exhaustive parity. This release implements original bounded workflows in every category; **all-feature and scanner parity with Burp Suite is unfinished and unqualified**. No proprietary code, scanner rules or branding were copied. No Burp edition/license is required by Atlas. Repository licensing remains an owner decision.
 
 Inventory checked October 12, 2026 against official [Burp tools](https://portswigger.net/burp/documentation/desktop/tools), [documentation contents](https://portswigger.net/burp/documentation/contents), [web application scans](https://portswigger.net/burp/documentation/desktop/running-scans/webapp-scans) and [extension documentation](https://portswigger.net/burp/documentation/desktop/extend-burp/extensions). These identify the reference inventory; they do not establish Atlas equivalence. PortSwigger labels its native Scanner Professional. Atlas checks below are separate original implementations.
+
+## Advanced implementation in 0.3.0
+
+Implemented original native authenticated scan sessions (cookie/bearer/manual and explicit CSRF-aware login sequences), browser cookie handoff, repeated session checks and at most two login refreshes. Crawl-driven auditing, explicit form/JSON/API requests, neutral/repeat controls, direct assessment findings, five new audit families, four multi-position attack modes/processors, text response editing, eleven codec/hash operations, token sample distribution measurements, declarative response checks and inert OpenAPI inventory are now present. [Exact workflow/contracts](authenticated-scans.md). Verification remains bounded to owned synthetic positive/negative fixtures and the executed browser/package workflows; no all-feature or independent accuracy claim is made.
+
+The following six-area table records the historical 0.2.0 baseline; changes in this release supersede its listed gaps only where described in the advanced contract above. Other gaps remain.
 
 ## Six requested areas
 
@@ -30,27 +36,27 @@ Inventory checked October 12, 2026 against official [Burp tools](https://portswi
 | `atlas-payload-reflection` | Supplied selected-parameter value occurs in bounded response text | Reflection only; browser execution and exploitation unproven |
 | `atlas-status-difference` | Payload response status differs from its baseline | Difference only; baseline event/digest retained; cause unqualified |
 
-The response-check button performs one scoped GET and passive analysis of that response. Payload tests are separate explicit requests. There is no automatic vulnerability audit of every crawled endpoint. Missing/unsupported checks are not a clean security verdict. Bodies are bounded UTF-8 text; current scanner parsing does not expand compressed bodies or interpret binary formats.
+In 0.3.0 the scanner can audit discovered endpoints when crawl-and-audit is selected, or one explicit start request with crawling disabled. Active check families are opt-in; baseline, neutral/confirmation and session-check requests share the run budget. Explicit form/JSON API requests are supported without automatically submitting discovered forms. Missing/unsupported checks are not a clean security verdict. Bodies are bounded UTF-8 text; current scanner parsing does not expand compressed bodies or interpret binary formats.
 
 ## Broader inventory and concrete backlog
 
 | Reference capability group | Atlas status | Work and acceptance needed |
 | --- | --- | --- |
 | Target/site map, scope, HTTP history/logger | Implemented bounded logical map, source/history filters and explicit scope | Qualify larger engagements and efficient temporal/resource views without identity conflation |
-| Proxy/request message editor | Partial native workflow | Add response interception/editing, binary/body encodings and streaming; fuzz framing/connection behavior against interoperability corpus |
-| Repeater/Comparer | Partial request replay and response comparison | Add request sequences, HTTP/2, WebSocket frames and saved redacted templates; verify authentication isolation/replay semantics |
-| Intruder/payload processing | Partial one-position sequential tests | Multi-position modes, scheduling/processors, result grouping, per-run authorization and cancellation tests |
-| Browser/session handling | Partial isolated interactive session | Recorded login flows/session checks, CSRF refresh, MFA handoff, SPA/service-worker coverage and explicit additional-origin rules; benchmark actual authorized application corpus |
-| Scanner: injection families | Not implemented | Original bounded SQL/NoSQL/OS/LDAP/XPath/template/XML injection checks with causal controls, cleanup and known vulnerable/nonvulnerable fixture matrix |
-| Scanner: browser/security families | Not implemented beyond listed headers/reflection | Context-sensitive XSS execution validation, CSRF, authorization/IDOR, session/authentication and clickjacking impact checks; measure false positives/negatives |
+| Proxy/request message editor | Partial native workflow | Text response interception/editing is implemented up to 16 KiB; add binary/body encodings and streaming; fuzz framing/connection behavior against interoperability corpus |
+| Repeater/Comparer | Partial request replay/diff and explicit GET/POST login sequences | HTTP/2, WebSocket frames and saved redacted request collections; richer general macros |
+| Intruder/payload processing | Four multi-position modes, four processors plus unchanged mode, query/form/JSON points, session verification and bounded cancellation | Binary/arbitrary insertion points, efficient result grouping, distributed scheduling and independent workload trials |
+| Browser/session handling | Isolated browser cookie handoff (including path-specific cookies), transient manual/bearer sessions, CSRF-aware explicit login sequences, protected checks and bounded refresh | Browser action recording, partitioned cookies/localStorage, service workers, automatic MFA/SSO replay and representative app corpus |
+| Scanner: injection families | Partial: controlled SQL-error and template arithmetic differentials | Original bounded SQL/NoSQL/OS/LDAP/XPath/template/XML injection checks with causal controls, cleanup and known vulnerable/nonvulnerable fixture matrix |
+| Scanner: browser/security families | Partial: original markup reflection, credentialed Origin reflection and explicit anonymous-content comparison | Context-sensitive XSS execution validation, CSRF, authorization/IDOR, session/authentication and clickjacking impact checks; measure false positives/negatives |
 | Scanner: transport/server families | Not implemented | Request smuggling/desynchronization, traversal/file access, cache behavior, SSRF and redirect validation under exact bounded authority; isolate impact and verify cleanup |
 | Out-of-band interactions/Collaborator | Not implemented | Owner-controlled interaction service, correlation/time window/privacy controls and explicit exposure authorization; no public service added |
 | WebSockets | Not implemented; isolated browser blocks them | Frame capture/edit/replay, scope/size/lifecycle guards and real protocol fixtures |
-| Sequencer/statistical token analysis | Not implemented | Secure transient sample handling and defensible statistical battery; distinguish distribution measurements from predictability |
-| Decoder/encoding utilities | Not implemented as a dedicated UI | Native bounded text/binary codecs and round-trip/malformed corpus; never execute decoded content |
+| Sequencer/statistical token analysis | Partial: transient sample distributions/duplicate and per-position empirical entropy measurements | Secure transient sample handling and defensible statistical battery; distinguish distribution measurements from predictability |
+| Decoder/encoding utilities | Implemented bounded UTF-8 codecs/hash UI; malformed inputs rejected | Native bounded text/binary codecs and round-trip/malformed corpus; never execute decoded content |
 | Organizer/notes/reporting | Partial via evidence, activity/review/history and redacted exports | Saved request annotations/collections, richer issue narratives and assessment acceptance trial |
-| Extension/custom-check APIs/Bambdas | Not implemented | Versioned isolated plugin/check contract, permissions/resource controls, lifecycle and compatibility verification; no arbitrary uploaded code execution |
-| Mobile, APIs, GraphQL/SOAP, browser matrices | Partial generic HTTP only | Schema-aware inventory, non-GET workflows and representative compatibility fixtures; no blanket protocol/vendor promise |
+| Extension/custom-check APIs/Bambdas | Partial: original declarative literal response checks; no uploaded code executes | Versioned isolated plugin/check contract, permissions/resource controls, lifecycle and compatibility verification; no arbitrary uploaded code execution |
+| Mobile, APIs, GraphQL/SOAP, browser matrices | Partial: explicit HTTP/JSON/form requests and inert OpenAPI 3.0/3.1 GET inventory | Schema-aware inventory, non-GET workflows and representative compatibility fixtures; no blanket protocol/vendor promise |
 | Advanced edition ecosystem/AI/DAST automation | Not implemented | Define owner outcomes and original contracts before implementation; no license parity or commercial product claim |
 
-No row labeled partial is complete parity. Prioritize protocol/interception hardening and a controlled scanner benchmark, then authentication/session coverage and payload modes. These remain concrete native product work rather than a plan to connect external Burp. [Setup/workflow](web-tools.md), [architecture decision](adr/0003-native-web-workbench.md), [security boundaries](web-security.md).
+No row labeled partial is complete parity. Authentication/session and bounded payload modes have advanced in 0.3.0. Remaining work includes WebSocket/protocol coverage, response binary/streaming support, broader scanner families and an independent controlled accuracy corpus. These remain concrete native product work rather than a plan to connect external Burp. [Setup/workflow](web-tools.md), [authenticated-scan contract](authenticated-scans.md), [architecture decision](adr/0004-transient-authenticated-audits.md), [security boundaries](web-security.md).

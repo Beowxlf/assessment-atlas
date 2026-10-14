@@ -10,6 +10,7 @@ import ssl
 import threading
 import time
 import uuid
+import copy
 
 from .importers import ImportProblem
 from .web_transport import Scope,fetch,METHODS
@@ -71,6 +72,7 @@ class Proxy:
     def __init__(self,tools,workspace,config):
         self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
         self.limit=bounded_int(config,'max_requests',100,1,200);self.duration=bounded_int(config,'max_seconds',300,1,300);port=bounded_int(config,'proxy_port',8877,1024,65535)
+        self.intercept_response=config.get('intercept_response') is True
         if port==tools.port:raise ImportProblem('Proxy port must differ from Atlas.')
         folder=tools.store.path.parent/'proxy-tls-volatile';folder.mkdir(exist_ok=True)
         if __import__('os').name=='nt':
@@ -93,7 +95,7 @@ class Proxy:
 
     def status(self,include_token=False):
         with self.lock:
-            result={'id':self.run['id'],'state':'stopped' if self.closed else 'running','port':self.server.server_address[1],'requests':self.count,'intercept':self.intercept,'CA_sha256':self.certificates.fingerprint,'pending':[{'id':key,**value['request']} for key,value in self.pending.items() if not value['ready'].is_set()],'scope':self.scope.summary()}
+            result={'id':self.run['id'],'state':'stopped' if self.closed else 'running','port':self.server.server_address[1],'requests':self.count,'intercept':self.intercept,'intercept_response':self.intercept_response,'CA_sha256':self.certificates.fingerprint,'pending':[{'id':key,'phase':value.get('phase','request'),**value['request']} for key,value in self.pending.items() if not value['ready'].is_set()],'scope':self.scope.summary()}
         if include_token:result.update(username='atlas',password=self.token,ca_pem=self.certificates.pem,ca_spki_sha256=self.certificates.spki)
         return result
 
@@ -105,6 +107,14 @@ class Proxy:
             if action not in ('forward','drop'):raise ImportProblem('Choose forward or drop.')
             request=item['request']
             if action=='forward':
+                if item.get('phase')=='response':
+                    status=changes.get('status',request['status']);body=changes.get('body',request['body']);headers=changes.get('headers',request['headers'])
+                    from .web_transport import request_headers
+                    if isinstance(status,bool) or not isinstance(status,int) or not 200<=status<=599 or not isinstance(body,str) or len(body.encode())>16384:raise ImportProblem('Response edit needs a 200–599 status and UTF-8 body up to 16 KiB.')
+                    if status in (204,205,304) and body:raise ImportProblem('This response status cannot contain a body.')
+                    validated=request_headers(headers)
+                    validated=[{'name':k,'value':v} for k,v in validated.items() if k.lower() not in ('connection','accept-encoding','user-agent','content-encoding')]
+                    item['edited']={**request,'status':status,'headers':validated,'body':body};item['action']=action;item['ready'].set();return
                 method=changes.get('method',request['method']);body=changes.get('body',request['body']);headers=changes.get('headers',request['headers'])
                 from .web_transport import request_headers
                 if method not in METHODS or not isinstance(body,str) or len(body.encode())>16384:raise ImportProblem('Invalid bounded request edit.')
@@ -135,7 +145,30 @@ class Proxy:
         source='web-browser' if self.config.get('browser_owned') else 'web-proxy'
         imported=self.tools.capture(self.workspace,event,source,self.config)
         with self.lock:
-            current=next(r for r in self.tools.store.web_runs(self.workspace) if r['id']==self.run['id']);imports=current['import_ids']+[imported]
+            current=next(r for r in self.tools.store.web_runs(self.workspace) if r['id']==self.run['id'])
+            self.tools.store.update_web_run(self.workspace,self.run['id'],requests=self.count,import_ids=current['import_ids']+[imported])
+        imported_ids=[]
+        content_type=next((h['value'] for h in event.get('response',{}).get('headers',[]) if h['name'].lower()=='content-type'),'')
+        encoding=next((h['value'] for h in event.get('response',{}).get('headers',[]) if h['name'].lower()=='content-encoding'),'identity')
+        if self.intercept_response and encoding.lower()=='identity' and not event.get('error') and not event['response']['truncated'] and len(raw)<=16384 and any(kind in content_type for kind in ('text/','json','xml')):
+            try:raw.decode('utf-8',errors='strict')
+            except UnicodeError:pass
+            else:
+                key=uuid.uuid4().hex;item={'phase':'response','request':{'url':url,'method':method,**copy.deepcopy(event['response'])},'ready':threading.Event(),'action':'drop'}
+                with self.lock:
+                    if len(self.pending)>=30:raise ImportProblem('Interception queue full.')
+                    self.pending[key]=item
+                try:
+                    item['ready'].wait(30)
+                    if item['action']!='forward':raise ImportProblem('Response dropped or interception timed out; upstream capture retained.')
+                    edited=item['edited'];derived=copy.deepcopy(event);derived['id']=key;derived['source_capture_id']=event['id'];derived['response']={**event['response'],**{k:edited[k] for k in ('status','headers','body')}};raw=edited['body'].encode()
+                    derived['response'].update(bytes=len(raw),body_sha256=hashlib.sha256(raw).hexdigest(),digest_scope='operator-edited UTF-8 response body')
+                    derived['interception']={**event['interception'],'response_intercepted':True,'upstream_response_event_id':event['id'],'upstream_response_body_sha256':event['response']['body_sha256'],'limit':'Operator-edited downstream response; not an upstream application behavior or additional target request.'}
+                    imported_ids.append(self.tools.capture(self.workspace,derived,source,self.config));event=derived
+                finally:
+                    with self.lock:self.pending.pop(key,None)
+        with self.lock:
+            current=next(r for r in self.tools.store.web_runs(self.workspace) if r['id']==self.run['id']);imports=current['import_ids']+imported_ids
             self.tools.store.update_web_run(self.workspace,self.run['id'],requests=self.count,import_ids=imports)
         if event.get('error') or event.get('response',{}).get('truncated'):raise ImportProblem('Upstream failed or exceeded 2 MiB; bounded capture retained.')
         return event,raw

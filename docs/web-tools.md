@@ -32,3 +32,7 @@ Database schema is **2**. Opening a schema-1 database first creates an exact SQL
 Development checks: `python -m unittest discover -s tests -v`; legacy browser workflow `node tests/ui.cjs`; native workflow `node tests/web-ui.cjs` against deliberately started owned fixture servers with `ATLAS_WEB_FIXTURE`, `ATLAS_WEB_TLS_FIXTURE`, `ATLAS_WEB_CA`, `ATLAS_UI_URL`, `ATLAS_UI_OUTPUT` and `ATLAS_PLAYWRIGHT_MODULE` set. Native UI tests use a real isolated Edge worker in headless mode; this test flag does not alter the visible user workflow. See [Verification](verification.md) and [security review](web-security.md).
 
 Proxy transport limits also include sixteen concurrent connections, five-second TLS handshake and ten-second request-header/body reads. The isolated browser disables QUIC and non-proxied WebRTC UDP; this is a bounded HTTP browsing tool, not a general browser network sandbox.
+
+## Authenticated scans and advanced tools (0.3.0)
+
+Use [the authenticated-scan workflow](authenticated-scans.md) for transient sessions, browser handoff, crawl-driven auditing, direct finding evidence, multi-position payloads, response edits, codecs, token measurements, declarative checks and OpenAPI inventory. Historical setup/0.2.0 verification above remains applicable where unchanged.

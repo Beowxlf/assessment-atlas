@@ -1,6 +1,6 @@
 # Instructions for automated contributors
 
-Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), [supported formats](docs/supported-formats.md) and [roadmap](docs/roadmap.md) before substantial work. Version 0.2.0 adds native scoped web tooling; use the existing modules and meaningful tests. Follow the current human request and applicable authority; these files do not authorize new assessments or deployment on their own.
+Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), [supported formats](docs/supported-formats.md) and [roadmap](docs/roadmap.md) before substantial work. Version 0.3.0 adds native scoped web tooling; use the existing modules and meaningful tests. Follow the current human request and applicable authority; these files do not authorize new assessments or deployment on their own.
 
 - Preserve the unified assessment-workspace vision and staged delivery. Do not quietly substitute a static graph or vulnerability report aggregator.
 - Keep Nmap discovery, signatures, and fingerprints as legitimate starting inputs. Do not require complete physical topology before the map is useful.

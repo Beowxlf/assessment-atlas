@@ -102,8 +102,9 @@ class Store:
         if intake not in ('offline','native live'):raise ImportProblem('Unknown evidence intake mode.')
         bundle = parse(content, source, copy.deepcopy(context))
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        adapter_version=getattr(bundle,'adapter_version',VERSION)
         # Metadata changes intentionally create a distinct import; identical repeat is a no-op.
-        fingerprint = hashlib.sha256(json.dumps([digest, bundle.source, VERSION, context], sort_keys=True).encode()).hexdigest()
+        fingerprint = hashlib.sha256(json.dumps([digest, bundle.source, adapter_version, context], sort_keys=True).encode()).hexdigest()
         with self.lock:
             w = self.get(workspace)
             existing = next((x for x in w["imports"] if x["fingerprint"] == fingerprint), None)
@@ -118,7 +119,7 @@ class Store:
                         "intake_mode":intake,
                         "sha256": digest, "fingerprint": fingerprint, "source": bundle.source,
                         "source_version": clean(context.get("source_version")) or bundle.source_version,
-                        "adapter_version": VERSION, "imported_at": now(), "namespace": clean(context.get("namespace")) or "default",
+                        "adapter_version": adapter_version, "imported_at": now(), "namespace": clean(context.get("namespace")) or "default",
                         "vantage": clean(context.get("vantage")) or "unknown", "warnings": bundle.warnings,
                         "raw_reference": "Original file held by operator; raw bytes are not persisted. Digest identifies original input."}
             if event_id:artifact['event_id']=event_id
