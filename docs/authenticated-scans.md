@@ -13,6 +13,8 @@ Atlas now crawls and audits with an explicitly verified, transient session. Nati
 
 Sessions expire after one hour or restart. Up to eight can be kept transiently across workspaces; the server enforces workspace ownership. Discarding a saved session does not revoke the independent copy held by an already running bounded scan. Stop that scan to discard its copy. Browser snapshots are taken when requested, not continuously synchronized with later browser changes. No refresh request is sent unless explicitly in the supplied sequence.
 
+Per-run session retention is bounded to one hundred cookies per origin, 4 KiB per cookie, and 512 known secret values / 1 MiB total, including replaced tokens. Exceeding target-cookie limits stops the audit and retains failure metadata instead of expanding credential memory indefinitely.
+
 ## Login sequence contract
 
 Up to ten scoped GET/POST requests; redirects need an explicit next request. Tokens can be extracted from a top-level/dotted JSON object path, a hidden HTML field or a named response header. Substitution uses `{{name}}`; top-level JSON string fields are JSON-escaped and form values URL-encoded. Nested arrays/JSON substitutions, browser action recording and automatic login-form discovery are not implemented. Do not place secrets in labels or URLs.

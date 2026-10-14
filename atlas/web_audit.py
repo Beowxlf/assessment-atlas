@@ -100,11 +100,15 @@ def run_scan(tools,workspace,run,scope,config,stop):
         elif auth:headers=auth.headers(url,headers)
         event=fetch(scope,url,method,headers,body,timeout=min(5,max(.1,plan['max_seconds']-(time.monotonic()-started))))
         count+=1
-        if auth and not anonymous:auth.absorb(event)
+        session_problem=False
+        if auth and not anonymous:
+            try:auth.absorb(event)
+            except ImportProblem:session_problem=True;event['error']='Session cookie/token limits failed; audit stopped'
         event['authentication']={'mode':'anonymous control' if anonymous else 'session credentials' if auth and web_url(url)[0] in auth.origins else 'unauthenticated','session_verified':bool(auth and auth.verified and not anonymous),'purpose':purpose,'generation':auth.generation if auth else 0}
-        imports.append(tools.capture(workspace,auth.scrub(event) if auth else event,'web-enumeration',{**config,'retain_body':False} if purpose=='login sequence' else config))
+        imports.append(tools.capture(workspace,auth.scrub(event) if auth else event,'web-enumeration',{**config,'retain_body':False} if purpose=='login sequence' or session_problem else config))
         if event.get('error'):errors.append(event['error'])
         tools.store.update_web_run(workspace,run['id'],requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,findings=findings)
+        if session_problem:raise Interrupted('failed','Session cookie/token limits failed; completed metadata retained and auditing stopped')
         if auth and auth.verified and not anonymous and purpose=='audit' and event.get('response',{}).get('status') in (401,403):verify()
         return event
     def verify():

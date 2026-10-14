@@ -38,6 +38,7 @@ class AuthFixture(BaseHTTPRequestHandler):
         if self.server.expired:signed=False
         if path=='/login':return self.reply(200,'<input type="hidden" name="csrf" value="'+CSRF+'">',[('X-Login-Token',CSRF)])
         if path=='/guard':return self.reply(200 if signed else 401,MARKER if signed else 'Login required')
+        if path=='/oversized-cookie':return self.reply(200 if signed else 401,MARKER if signed else 'Login required',[('Set-Cookie','session='+'X'*5000+'; Path=/')])
         if path=='/private/path-guard':return self.reply(200 if signed else 401,MARKER if signed else 'Login required')
         if path=='/public-guard':return self.reply(200,MARKER)
         if path=='/auto-login':return self.reply(200,'<script>fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:"synthetic",password:"'+PASSWORD+'",csrf:"'+CSRF+'"})}).then(()=>fetch("/guard")).then(r=>r.text()).then(t=>document.body.dataset.loaded=t)</script>')
@@ -194,6 +195,12 @@ class AdvancedTests(unittest.TestCase):
     def test_ipv4_mapped_control_and_metadata_targets_are_excluded(self):
         for address,port in (('::ffff:169.254.169.254',80),('::ffff:127.0.0.1',8765)):
             with patch('socket.getaddrinfo',return_value=[(10,1,6,'',(address,port,0,0))]),self.assertRaises(ImportProblem):Scope({**self.config,'url':f'http://[{address}]:{port}/'},8765)
+    def test_oversized_target_cookies_stop_with_retained_failure_metadata(self):
+        result=self.scan(auth={'check_url':self.url+'/oversized-cookie','success_text':MARKER,'headers':'Cookie: session='+COOKIE});self.assertEqual(result['state'],'failed');self.assertEqual(result['audited_endpoints'],0);self.assertEqual(result['requests'],2);self.assertEqual(len(result['import_ids']),2)
+        workspace=self.store.get(self.workspace['id']);self.assertTrue(any(o['kind']=='web request failure' for o in workspace['observations']));self.assertFalse('X'*100 in json.dumps(workspace))
+        session=AuthSession(Scope(self.config),self.auth);session.secrets.update('test-value-'+str(i) for i in range(513))
+        with self.assertRaises(ImportProblem):session.check_secret_limits()
+        session.clear()
 
 
 if __name__=='__main__':unittest.main()

@@ -63,6 +63,10 @@ class AuthSession:
         cookies=config.get('cookies',[])
         if not isinstance(cookies,list) or len(cookies)>100:raise ImportProblem('Session cookie snapshot exceeds 100 cookies.')
         for row in cookies:self.seed_cookie(row)
+        self.check_secret_limits()
+
+    def check_secret_limits(self):
+        if len(self.secrets)>512 or sum(len(value.encode()) for value in self.secrets)>1048576:raise ImportProblem('Transient session values exceeded bounded retention limits; scanning stopped.')
 
     def remember(self,value):
         if isinstance(value,str):
@@ -131,8 +135,11 @@ class AuthSession:
         response=type('CookieResponse',(),{'info':lambda _:message})()
         self.jar(origin).extract_cookies(response,Request(event['url']))
         jar=self.jar(origin);jar.clear_expired_cookies()
-        for cookie in jar:self.secrets.add(cookie.value)
+        for cookie in jar:
+            if len(cookie.value.encode())>4096:raise ImportProblem('Target cookie exceeds 4 KiB; scanning stopped.')
+            self.secrets.add(cookie.value)
         if len(list(jar))>100:raise ImportProblem('Target session exceeded one hundred cookies; scanning stopped.')
+        self.check_secret_limits()
 
     def valid(self,event):
         response=event.get('response',{})
@@ -164,6 +171,7 @@ class AuthSession:
                 except (ValueError,KeyError,TypeError,StopIteration):raise ImportProblem('Login token extraction failed.') from None
                 if not isinstance(value,str) or not value or len(value)>4096 or '\r' in value or '\n' in value:raise ImportProblem('Login token is missing or malformed.')
                 self.variables[key]=value;self.secrets.add(value)
+                self.check_secret_limits()
         event=request(self.guard,'GET',[], '',False)
         if not self.valid(event):raise ImportProblem('Session check failed; authenticated scanning stopped.')
         self.verified=True;self.generation+=1
