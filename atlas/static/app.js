@@ -16,6 +16,7 @@ function needsWorkspace() { if (!state) throw new Error('Create or choose a work
 function label(id) { return state?.entities.find(e => e.id === id)?.label || 'Entire engagement'; }
 function canonical(id) { return state.canonical[id] || id; }
 function show(view) {
+  window.scrollTo({top:0,left:0});
   currentView = view; document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== view);
   document.querySelectorAll('nav button').forEach(b => { b.classList.toggle('selected', b.dataset.view === view); if (b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   if (view === 'map') renderGraph();
