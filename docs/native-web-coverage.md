@@ -1,4 +1,4 @@
-# Native web capability and acceptance matrix — 0.4.0
+# Native web capability and acceptance matrix — 0.6.0
 
 Owner direction: original native Burp-style capabilities inside Assessment Atlas, with findings feeding the assessment directly. External Burp piping is not the requested implementation. The six original areas remain the minimum categories. HTTP/2/3, WebSockets, owner-controlled HTTP/DNS callbacks and twelve added audit selections are now implemented. **Complete Burp feature/scanner parity and independent scanner accuracy remain unqualified.** No proprietary scanner code/rules are copied; no Burp license is required. Project licensing remains an owner decision.
 
@@ -59,3 +59,7 @@ A completed run means its selected bounded queue finished. Unsupported/truncated
 | Operational acceptance | Larger engagements/concurrency, independent security audit, scanner benchmark, accessibility/browser/platform certification and owner assessment trial remain unqualified |
 
 No row is a complete commercial-product parity claim. [ADR 0005](adr/0005-protocols-and-owned-interactions.md), [security boundaries](web-security.md), and exact versioned package receipts identify the implemented subset and actual verification. This is native product work, not an external Burp integration.
+
+## Hosted console extension
+
+The [hosted console](hosted-console.md) adds browser-session-bound Linux PTYs, route-checked typed discovery, server-rendered browser interaction and native-reference evidence selection. A saved manual finding now appears in Findings. Existing web-workbench browser opening prepares the embedded browser when hosted. Remote host agents/extensions, multi-tenant isolation and real HTB VPN/target qualification remain distinct gaps.

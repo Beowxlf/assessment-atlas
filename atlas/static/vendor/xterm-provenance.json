@@ -1,0 +1,12 @@
+{
+  "package": "@xterm/xterm",
+  "version": "5.5.0",
+  "source": "https://registry.npmjs.org/@xterm/xterm/-/xterm-5.5.0.tgz",
+  "integrity": "sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==",
+  "license": "MIT; included license text applies",
+  "files_sha256": {
+    "xterm.js": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495",
+    "xterm.css": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6",
+    "xterm-LICENSE.txt": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd"
+  }
+}

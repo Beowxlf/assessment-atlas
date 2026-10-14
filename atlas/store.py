@@ -99,7 +99,7 @@ class Store:
                 con.execute("VACUUM")
 
     def import_file(self, workspace, content, filename, source, context, intake='offline'):
-        if intake not in ('offline','native live'):raise ImportProblem('Unknown evidence intake mode.')
+        if intake not in ('offline','native live','host live'):raise ImportProblem('Unknown evidence intake mode.')
         bundle = parse(content, source, copy.deepcopy(context))
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         adapter_version=getattr(bundle,'adapter_version',VERSION)
@@ -124,6 +124,7 @@ class Store:
                         "raw_reference": "Original file held by operator; raw bytes are not persisted. Digest identifies original input."}
             if event_id:artifact['event_id']=event_id
             if bundle.source.startswith('web-'):artifact['raw_reference']='Bounded live capture or web envelope; raw messages are transient and not persisted. Retained excerpts may be redacted/truncated; protect source originals separately when available.'
+            if intake=='host live':artifact['raw_reference']='Original bounded tool file retained on the Linux execution host under data/terminal-evidence, separate from assessment exports. Protect and remove that file separately.'
             mapping = {entity["key"]: uid() for entity in bundle.entities}
             for entity in bundle.entities:
                 w["entities"].append({**entity, "id": mapping[entity["key"]], "import_id": artifact["id"], "namespace": artifact["namespace"]})
@@ -153,6 +154,25 @@ class Store:
             run.update(copy.deepcopy(changes));self._save(w);return copy.deepcopy(run)
 
     def web_runs(self,workspace):return copy.deepcopy(self.get(workspace).get('web_runs',[]))
+
+    def capture_selection(self,workspace,data,context=None):
+        """An operator-selected excerpt attached to a reviewed existing identity."""
+        from .host_operations import terminal_text
+        with self.lock:
+            w=self.get(workspace)
+            subject=data.get('subject');source=data.get('source')
+            if subject not in {e['id'] for e in w['entities']}:raise ImportProblem('Choose an existing assessment identity for the captured evidence.')
+            if source not in ('terminal-selection','browser-selection'):raise ImportProblem('Unknown selection source.')
+            title=required_text(data.get('title'),'Evidence title',240)
+            value=data.get('text')
+            if not isinstance(value,str) or not 1 <= len(value.encode()) <= 12000:raise ImportProblem('Select 1–12,000 UTF-8 bytes of evidence.')
+            text=terminal_text(value);key=uid();at=now()
+            artifact={'id':uid(),'filename':source+'-'+key+'.txt','source':source,'source_version':'Atlas operator selection 1','adapter_version':'1','imported_at':at,'namespace':next(e for e in w['entities'] if e['id']==subject).get('namespace','default'),'vantage':'Atlas execution host','sha256':hashlib.sha256(value.encode()).hexdigest(),'intake_mode':'operator selection','warnings':['Operator-selected excerpt; raw screen/terminal buffers are not automatically retained. Review sensitive content and verify interpretation.'],'raw_reference':'Selected excerpt normalized/scrubbed; retain protected original output where available.'}
+            artifact['vantage']='Atlas Linux server' if context else 'Operator-supplied selection; original vantage unverified'
+            if context:artifact['native_context']=copy.deepcopy(context)
+            obs={'id':key,'subject':subject,'target':None,'kind':source,'value':{'title':title,'text':text},'status':'observed','basis':'manual','collected_at':at,'vantage':artifact['vantage'],'location':'operator selection','import_id':artifact['id']}
+            w['imports'].append(artifact);w['observations'].append(obs);w['history'].append({'at':at,'action':'evidence captured','detail':title,'import_id':artifact['id']});self._save(w)
+            return {'workspace':self.view(w),'observation_id':key,'import_id':artifact['id']}
 
     def vulnerability_result(self, workspace, run_id, result):
         """Attach inferred advisory evidence to the existing asset, atomically."""
@@ -350,6 +370,7 @@ class Store:
                 artifact["source_version"] = "[withheld]"
                 artifact["vantage"] = "[withheld]" if artifact["vantage"] != "unknown" else "unknown"
                 artifact["namespace"] = "[withheld]"
+                if 'native_context' in artifact:artifact['native_context']='[withheld]'
             for item in w["findings"] + w["records"] + w["history"] + w["decisions"]:
                 for field in ("title", "description", "details", "detail", "reason", "review_notes", "evidence_refs", "external_id", "location"):
                     if field in item:

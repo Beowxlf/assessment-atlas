@@ -1,6 +1,9 @@
 'use strict';
 let operatorWorkspace='',operatorTarget='',operatorInitialized=false;
 const atlasTools=[
+  {name:'Embedded terminal',group:'Discovery',description:'Run Linux shell commands or bounded discovery profiles and document selected evidence.',view:'console',keywords:'htb nmap vpn shell terminal command enumeration'},
+  {name:'Embedded browser',group:'Testing',description:'Interact with a scoped browser on the execution host and prepare authenticated tests.',view:'console',consoleTab:'browser',keywords:'htb browser login web testing'},
+  {name:'Evidence to finding',group:'Assessment',description:'Attach a reviewed terminal/browser excerpt and draft a finding with its evidence reference.',view:'console',consoleTab:'evidence',keywords:'document quick finding notes evidence'},
   {name:'Target table',group:'Discovery',description:'Review hosts, services, endpoints and source evidence.',view:'discovery',keywords:'cobalt strike targets enumeration inventory'},
   {name:'Import scan results',group:'Discovery',description:'Preview Nmap, Nessus, Nuclei and other collected evidence.',view:'import',keywords:'discovery enumeration network ports files offline'},
   {name:'Network map',group:'Discovery',description:'Explore observed relationships and unresolved identities.',view:'map',keywords:'topology graph route neighbors'},
@@ -29,13 +32,14 @@ function operatorArrangeNavigation(){
   const nav=document.querySelector('nav');const more=$('extra-views');
   const titles={overview:'Workspace',discovery:'Discovery',tools:'Tools',findings:'Findings',evidence:'Evidence',report:'Reports'};
   for(const [view,title] of Object.entries(titles)){let b=nav.querySelector('[data-view="'+view+'"]');if(!b){b=button(title,()=>operatorOpen({view}));b.dataset.view=view;}b.textContent=title;nav.insertBefore(b,more);}
-  for(const view of ['map','activity','import','web','vulnerability']){const b=nav.querySelector('[data-view="'+view+'"]');if(b&&!more.contains(b))more.append(b);}
-  const parent={map:'discovery',activity:'evidence',import:'discovery',web:'tools',vulnerability:'tools'}[currentView];
+  for(const view of ['map','activity','import','web','vulnerability','console']){const b=nav.querySelector('[data-view="'+view+'"]');if(b&&!more.contains(b))more.append(b);}
+  const parent={map:'discovery',activity:'evidence',import:'discovery',web:'tools',vulnerability:'tools',console:'tools'}[currentView];
   for(const b of nav.querySelectorAll('button'))b.classList.toggle('selected',b.dataset.view===currentView||b.dataset.view===parent);
 }
 async function operatorOpen(tool){
   if(!$('web-pane-crawl')&&tool.view==='web')throw new Error('Web tools are still loading. Try again in a moment.');
   show(tool.view);
+  if(tool.view==='console'&&window.atlasConsoleRefresh){await consoleRefresh();consoleTab(tool.consoleTab||'terminal');}
   if(tool.view==='web'){
     await webRefresh(true);const tab=document.querySelector('[data-web-tab="'+(tool.tab||'crawl')+'"]');tab?.click();
     if(tool.auth){$('web-auth-settings').hidden=false;$('web-auth-toggle').setAttribute('aria-expanded','true');}
@@ -118,6 +122,6 @@ run(async()=>{
   dialog.addEventListener('close',()=>{if(dialog.returnValue!=='navigate')finder.focus();});
   dialog.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();dialog.close('');}},true);
   const evidenceActions=el('div','','button-row');evidenceActions.append(button('Open assessment activity',()=>operatorOpen({view:'activity'})),button('Import more evidence',()=>operatorOpen({view:'import'})));$('evidence').insertBefore(evidenceActions,$('evidence-search').closest('label'));
-  input.addEventListener('input',operatorDiscoveryView);select.addEventListener('change',operatorDiscoveryView);toolSearch.addEventListener('input',()=>operatorToolsView(list,toolSearch.value));dialogInput.addEventListener('input',()=>operatorToolsView(results,dialogInput.value,true));document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();finder.click();}});
+  input.addEventListener('input',operatorDiscoveryView);select.addEventListener('change',operatorDiscoveryView);toolSearch.addEventListener('input',()=>operatorToolsView(list,toolSearch.value));dialogInput.addEventListener('input',()=>operatorToolsView(results,dialogInput.value,true));document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&!e.target.closest?.('#terminal-screen,#embedded-screen')){e.preventDefault();finder.click();}});
   operatorInitialized=true;window.atlasOperatorRefresh();
 });

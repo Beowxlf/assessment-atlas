@@ -66,3 +66,7 @@ Governance: [decision authority](../GOVERNANCE.md). Architecture changes: [ADRs]
 ## Implemented 0.5.0 extension
 
 The owner requested public vulnerability scans and a simpler operator workflow. [ADR 0006](adr/0006-public-advisory-scans.md) records fixed public NVD/OSV/GHSA applicability, separate CISA KEV/FIRST EPSS context, reviewed existing-asset inventory, immutable direct findings and a bounded local cache. Discovery/Tools now provide target inspection, prepared-context handoffs and a task/name directory. [Vulnerability coverage](vulnerability-scans.md) and [operator acceptance](operator-workflow.md) retain unknown applicability, source availability, explicit query disclosure and heuristic/browser versus real-operator limits. Broader authenticated package collection, distribution/backport-aware version semantics, universal SBOM coverage, bulk database mirroring, independent scanner accuracy benchmarks and competitor parity remain future work.
+
+## Hosted operator extension — 0.6.0
+
+The owner requested and received opt-in private Ubuntu hosting, an embedded execution terminal/browser and evidence-to-finding handoff; [ADR 0007](adr/0007-hosted-operator-console.md) records the resulting single-operator trust model. [Pentest audit](pentest-workflow-audit.md) separates delivered fixture workflows from the unfinished host connector, real HTB route/target trial, independent scanner accuracy, large-inventory pagination, broader clients and operator/tenancy qualification. Earlier hosting exclusions describe prior releases.

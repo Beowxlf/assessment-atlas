@@ -71,7 +71,8 @@ class ProxyServer(ThreadingHTTPServer):
 class Proxy:
     def __init__(self,tools,workspace,config):
         self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
-        self.limit=bounded_int(config,'max_requests',100,1,200);self.duration=bounded_int(config,'max_seconds',300,1,300);port=bounded_int(config,'proxy_port',8877,1024,65535)
+        embedded=config.get('embedded') is True and config.get('browser_owned') is True
+        self.limit=bounded_int(config,'max_requests',100,1,500 if embedded else 200);self.duration=bounded_int(config,'max_seconds',300,1,1800 if embedded else 300);port=bounded_int(config,'proxy_port',8877,1024,65535)
         self.intercept_response=config.get('intercept_response') is True
         self.ws_intercept=False;self.ws_connections=[];self.ws_count=0
         if port==tools.port:raise ImportProblem('Proxy port must differ from Atlas.')

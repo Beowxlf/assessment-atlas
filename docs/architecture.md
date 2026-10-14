@@ -85,3 +85,7 @@ Exports must preserve typed edges and provenance references plus time/vantage, u
 ## Native vulnerability and operator extension
 
 [ADR 0006](adr/0006-public-advisory-scans.md) adds a bounded public cache (schema 1), inventory-to-advisory jobs and direct inferred observations/findings on existing assets. Source snapshots and inventory references are copied into the assessment before cache replacement; main schema remains 2. Nmap adapter 3 retains CPEs. Public queries exclude target/credential/assessment identity fields. Discovery and a searchable tool directory prepare context without executing imported content or starting a target request. [Vulnerability scans](vulnerability-scans.md) and [operator workflow](operator-workflow.md) define exact contracts.
+
+## Hosted operator console
+
+[ADR 0007](adr/0007-hosted-operator-console.md) adds optional fixed HTTPS operator authentication, browser-session/workspace-bound Linux PTYs and native browser actions. Protected raw operation files are separate from normalized assessment storage and exports. Selected excerpts reference existing identities and native runs where available; manually authored findings now appear in the Findings view. Schema 2 remains unchanged. See [Hosted console](hosted-console.md) for trust, vantage, deployment and qualification limits.

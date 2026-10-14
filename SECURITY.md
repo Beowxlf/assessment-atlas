@@ -39,3 +39,7 @@ Related: [Governance](GOVERNANCE.md), [evidence lifecycle](docs/architecture.md)
 ## Public advisory boundary
 
 Public vulnerability imports/SBOMs are inert. Public API access is opt-in and limited to fixed verified HTTPS routes with public DNS pinning, no redirects, private-target fields, arbitrary API endpoint/key controls or certificate bypass. Queries disclose selected software/advisory identities; the shared local cache retains them and uploaded filenames. Source authenticity/age, applicability gaps, immutable assessment copies and separate exploitation-probability/severity context are required. See [Vulnerability scans](docs/vulnerability-scans.md). Prepared UI handoffs must reset authorization/secret request context and never trigger live collection.
+
+## Optional hosted Linux execution
+
+[Hosted console](docs/hosted-console.md) specifies a fixed HTTPS origin, loopback backend, salted password hash, session/nonce isolation, logout and throttling. Run unprivileged. The interactive shell is trusted operator access to the app account and filesystem; it is not multi-tenant isolation. Credentials, screen streams and PTY buffers are transient, while bounded configured-operation originals are retained separately under protected data/terminal-evidence. Review sensitive excerpts and original custody; scrubbing cannot guarantee every secret is removed. Browser execution requires the Linux Chromium sandbox and verified upstream TLS. A host VPN route is required; browser-client VPN state is unrelated.

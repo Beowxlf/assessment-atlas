@@ -30,7 +30,7 @@ G1–G6 from the [roadmap](roadmap.md) have local synthetic workflow demonstrati
 
 ## Reproduce and package
 
-From the checkout root run `python -m unittest discover -s tests -v`. Start the app with a synthetic data directory: `python -m atlas.server --data-dir work/browser-data --no-open`. For browser checks, use an installed Playwright package and Microsoft Edge, then `node tests/ui.cjs`. Optional environment settings are `ATLAS_PLAYWRIGHT_MODULE` (module path), `ATLAS_UI_URL` (loopback app URL), and `ATLAS_UI_OUTPUT` (screenshots/downloads/receipt directory). Playwright is test-only tooling, not included or needed at runtime.
+From the checkout root run `python -m unittest discover -s tests -v`. Start the app with a synthetic data directory: `python -m atlas.server --data-dir work/browser-data --no-open`. For browser checks, use an installed Playwright package and Microsoft Edge, then `node tests/ui.cjs`. Optional environment settings are `ATLAS_PLAYWRIGHT_MODULE` (module path), `ATLAS_UI_URL` (loopback app URL), and `ATLAS_UI_OUTPUT` (screenshots/downloads/receipt directory). Playwright supplies test tooling and the optional native browser runtime; core offline import/report workflows do not require it.
 
 To build a source/runnable ZIP from a clean committed revision: `python tools/package.py /new/path/assessment-atlas-0.2.0.zip`. It refuses an existing output, uses committed Git content, includes the revision/file-hash manifest and verifies archive integrity. Extract elsewhere, run the suite and app from the extraction, and exercise the browser workflow before delivering. Preserve sensitive workspace data separately; the archive contains only source, docs and synthetic fixtures.
 
@@ -41,3 +41,11 @@ Single workstation/operator only; OS account/disk controls rather than app encry
 ## Native web extension of verification
 
 The current 0.2.0 source suite passes 52 tests, and actual UI workflows exercise all six native categories, including a real isolated Edge HTTPS login POST/cookie/JavaScript API session. This does not establish all-feature/scanner parity. [Native verification](native-web-verification.md) records named environments, exact local/live/package coverage and material limits. Earlier 0.1.x results above are historical; the newer external package receipt is authoritative for its exact committed artifact.
+
+## Hosted console verification — 0.6.0
+
+October 14, 2026: the full suite passed 120 tests on Ubuntu 22.04.5/Python 3.12.15 with zero skips. Windows/Python 3.12.14 passed with six Linux-only skips; the Linux PTY/profile cases were separately exercised. Node 22.23.3, Playwright 1.62.1/Chromium 151, cryptography 50.0.2, h2 4.4.1, aioquic 1.6.1 and wsproto 1.3.2 were installed/verified.
+
+Six existing Edge workflows plus the embedded console and live private HTTPS workflow passed. The hosted check covered authentication/anonymous denial, actual service PTY and ordered input, route-checked HEAD intake, sandboxed browser input, actual fixture authentication, native evidence references, a visible manual finding, authenticated audit findings, mobile width and logout rejection. Labelled hosted fixture assessments are retained; the original assessment body hash was checked unchanged. No real HTB VPN/target, global trust installation, independent scanner benchmark or human operator trial is claimed.
+
+A separate invented-inventory database on Ubuntu exercised five verified public NVD/OSV/priority queries, retaining 88 grouped leads and three uncertain environmental/version candidates with a partial outcome, zero target probes and no production data changes. See [Pentest audit](pentest-workflow-audit.md) and [Hosted console](hosted-console.md). Exact-package receipts give the final revision/hashes and verification logs.

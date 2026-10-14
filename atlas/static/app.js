@@ -10,7 +10,7 @@ function message(text, error = false) { $('message').textContent = text; $('mess
 async function run(fn, b) { if (b) b.disabled = true; try { await fn(); } catch (err) { message(err.message, true); } finally { if (b) b.disabled = false; } }
 async function api(path, data) {
   const r = await fetch('/api/' + path, data ? {method:'POST', headers:{'Content-Type':'application/json','X-Atlas-Nonce':nonce}, body:JSON.stringify(data)} : {});
-  const result = await r.json(); if (!r.ok) throw new Error(result.error || 'Request failed.'); return result;
+  const result = await r.json(); if (r.status===401&&path!=='session') location.assign('/'); if (!r.ok) throw new Error(result.error || 'Request failed.'); return result;
 }
 function needsWorkspace() { if (!state) throw new Error('Create or choose a workspace first.'); }
 function label(id) { return state?.entities.find(e => e.id === id)?.label || 'Entire engagement'; }
@@ -45,12 +45,14 @@ function render() {
     if (!state.imports.length) $('source-summary').append(el('p','No sources yet. Import a result file to begin.','muted'));
     $('health-summary').textContent = `${state.candidates.length} identity suggestions${state.candidates_limited?' (suggestion limit reached; manually select other candidates as needed)':''} · ${state.conflicts.length} sets of divergent observations. These remain visible until reviewed.`;
   }
-  populateFilters(); renderGraph(); renderIdentities(); renderEvidence(); renderFindings(); renderRecords(); renderHistory(); renderExportSelection();
+  populateFilters(); renderGraph(); renderIdentities(); renderEvidence(); renderFindings(); renderManualFindings(); renderRecords(); renderHistory(); renderExportSelection();
   if(window.atlasWebRefresh)window.atlasWebRefresh();
   if(window.atlasVulnerabilityRefresh)window.atlasVulnerabilityRefresh();
   if(window.atlasOperatorRefresh)window.atlasOperatorRefresh();
+  if(window.atlasConsoleRefresh)window.atlasConsoleRefresh();
 }
 function options(id, nodes, emptyText) { const select=clear(id); if(emptyText) select.append(new Option(emptyText,'')); for(const n of nodes) select.append(new Option(n.label + ' · ' + n.kind,n.id)); }
+function renderManualFindings(){const findings=(state?.records||[]).filter(r=>r.kind==='finding');if(findings.length)$('finding-list').querySelector('.empty')?.remove();for(const record of findings){const card=el('article','','card');card.append(badge('manual finding'),el('h2',record.title),el('p',label(record.subject),'muted'),el('p',record.details),el('p','Evidence: '+(record.evidence_refs||'No evidence reference supplied'),'subline'),button('Inspect assessment finding',()=>details(record.title,[record,...state.observations.filter(o=>(record.evidence_refs||'').includes(o.id))])),reviewForm(record,'records'));$('finding-list').append(card);}}
 function populateFilters() {
   const saved = ['edge-filter','source-filter'].map(id=>$(id).value);
   clear('edge-filter').append(new Option('All types','')); clear('source-filter').append(new Option('All sources & history',''));
@@ -140,4 +142,4 @@ $('download-json').addEventListener('click',()=>run(async()=>download(JSON.strin
 $('download-html').addEventListener('click',()=>run(async()=>{needsWorkspace();const response=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Nonce':nonce},body:JSON.stringify({workspace:state.id,format:'html',identifiers:$('export-identifiers').checked,...filters()})});if(!response.ok)throw new Error((await response.json()).error);download(await response.text(),'assessment-report.html','text/html');}));
 $('download-svg').addEventListener('click',()=>run(exportSvg));$('map-download').addEventListener('click',()=>{show('report');message('Review export selection and identifiers before downloading the map.');});
 $('delete-workspace').addEventListener('click',()=>run(async()=>{needsWorkspace();await api('delete',{workspace:state.id,confirmation:$('delete-confirmation').value});state=null;$('delete-confirmation').value='';await refreshList();render();show('overview');message('Workspace deleted. Original files, downloads and backups outside this application are unchanged.');}));
-run(async()=>{const session=await api('session');nonce=session.nonce;$('version').textContent='Version '+session.version;$('storage').textContent='Data folder: '+session.storage;const list=await refreshList();const saved=localStorage.getItem('atlas-workspace');const chosen=list.find(w=>w.id===saved)?.id||list[0]?.id||'';$('workspace').value=chosen;await load(chosen);show('overview');});
+run(async()=>{const session=await api('session');nonce=session.nonce;$('version').textContent='Version '+session.version;$('storage').textContent='Data folder: '+session.storage;window.atlasHosted=session.mode==='hosted';if(window.atlasHosted){document.querySelector('.local-badge').textContent='Hosted · signed in';document.querySelector('header').append(button('Sign out',async()=>{await api('logout',{});location.replace('/');}));}const list=await refreshList();const saved=localStorage.getItem('atlas-workspace');const chosen=list.find(w=>w.id===saved)?.id||list[0]?.id||'';$('workspace').value=chosen;await load(chosen);show('overview');});
