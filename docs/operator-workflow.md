@@ -1,4 +1,4 @@
-# Operator workspace — 0.5.0
+# Operator workspace — 0.6.1
 
 The user requested simpler enumeration/discovery and easier tool location, using Cobalt Strike and Burp Suite as references. Atlas keeps its own design and assessment model. The reference patterns are quick access and target tables from [Cobalt Strike's toolbar](https://hstechdocs.helpsystems.com/manuals/cobaltstrike/current/userguide/content/topics/ui_toolbar.htm), and selected-context handoffs from [Burp's site-map workflow](https://portswigger.net/burp/documentation/desktop/tools/target/site-map/workflow-tools). References checked October 14, 2026. No vendor code, screenshots, icons, assets, branding, session/C2 mechanics or competitor parity claims are included.
 
@@ -6,11 +6,11 @@ The user requested simpler enumeration/discovery and easier tool location, using
 
 **Workspace → Discovery → Tools → Findings → Reports.** Six primary sidebar destinations are Workspace, Discovery, Tools, Findings, Evidence and Reports. More workspace views exposes the existing map, activity, imports, web workbench and vulnerability page; the same destinations are reachable through task links. Existing evidence, identity reconciliation and review features remain available.
 
-Discovery presents a searchable/filterable target table, source claim states, finding counts, selected-target evidence, and recent runs/coverage. It includes shortcuts to import collected host/service results, enumerate an explicitly scoped website and review software inventory. Network enumeration starts from supported discovery imports; Atlas does not launch Nmap or scan a network from the target table. Native web discovery uses the existing bounded crawler/path engine.
+Discovery presents a searchable/filterable target table, source claim states, finding counts, selected-target evidence, and recent runs/coverage. It includes shortcuts to import collected host/service results, enumerate an explicitly scoped website and review software inventory. Target shortcuts also prepare the terminal or embedded browser; Nmap execution requires separate route preview and authorization in the hosted console. Native web discovery uses the existing bounded crawler/path engine.
 
 Selecting a target prepares the next tool. Reported web URLs or HTTP-service-derived URL drafts are labeled; preparation resets live authorization and request/authentication input context. It does not make a target request. An operator must review origins, paths, authentication and limits, then deliberately start collection. A software handoff narrows the inventory view, clears prior scan selection and still requires reviewed software selection. Associations remain evidence-based; names/IPs are not merged.
 
-Tools provides 22 purpose-labeled destinations grouped by Discovery, Testing, Analysis and Assessment. Search accepts tasks and familiar names such as Repeater, Intruder, Sequencer, Collaborator, CVE or authentication; matches open the corresponding native Atlas controls. The header **Find a tool** button and **Ctrl/Command+K** open the same searchable directory. Opening a tool performs local navigation, not a live scan. Web tabs precede configuration, and the authentication editor opens through **Configure authentication** or its tool entry. The selected session remains visible.
+Tools provides 25 purpose-labeled destinations grouped by Discovery, Testing, Analysis and Assessment. Search accepts tasks and familiar names such as Repeater, Intruder, Sequencer, Collaborator, CVE or authentication; matches open the corresponding native Atlas controls. The header **Find a tool** button and **Ctrl/Command+K** open the same searchable directory. Opening a tool performs local navigation, not a live scan. Web tabs precede configuration, and the authentication editor opens through **Configure authentication** or its tool entry. The selected session remains visible.
 
 ## Interaction contract
 
@@ -32,3 +32,5 @@ Verification covers a synthetic browser task from imported discovery through tar
 ## Linux hosted execution and documentation
 
 The tool directory also opens Embedded terminal, Embedded browser and Evidence to finding. [Hosted console](hosted-console.md) describes the route-checked discovery profiles, interactive browser, authenticated-audit preparation and selected evidence handoff. Operations execute on the Atlas Linux host; the browser client VPN does not supply its route. A reviewed finding draft appears in Findings after saving.
+
+[Operator conveniences](operator-qol.md) adds finding filters, tab-local workspace drafts, keyboard finder/results and recent tool shortcuts, prepared console targets and compact scoped navigation.

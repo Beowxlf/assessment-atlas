@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 import zipfile
 
 
@@ -19,6 +20,8 @@ def main():
     root=Path(__file__).resolve().parent.parent
     if Path.cwd().resolve()!=root:
         raise SystemExit("Run this command from the repository root.")
+    sys.path.insert(0,str(root))
+    from atlas import __version__
     if git("status","--porcelain").strip():
         raise SystemExit("Commit or preserve changes first; the package must represent a clean revision.")
     revision=git("rev-parse","HEAD").decode().strip()
@@ -31,9 +34,9 @@ def main():
         entries={item.filename:hashlib.sha256(archive.read(item)).hexdigest() for item in archive.infolist() if not item.is_dir()}
         if any(name.endswith((".sqlite3",".pcap",".pem",".key")) or name.startswith(("work/","evidence/","data/",".git/")) for name in entries):
             raise SystemExit("Unexpected sensitive/intermediate file in tracked archive; preserve output for inspection.")
-        manifest={"product":"Assessment Atlas","version":"0.5.0","source_revision":revision,
+        manifest={"product":"Assessment Atlas","version":__version__,"source_revision":revision,
                   "repository":"https://github.com/Beowxlf/assessment-atlas","built_at":dt.datetime.now(dt.timezone.utc).isoformat(),
-                  "requires":"Python 3.12+; HTTP/2: h2; HTTP/3: aioquic; WebSockets: wsproto (requirements-protocols.txt); TLS interception: cryptography; isolated browser: Node.js/Playwright/Microsoft Edge; no runtime bundled", "files_sha256":entries,
+                  "requires":"Python 3.12+; HTTP/2: h2; HTTP/3: aioquic; WebSockets: wsproto (requirements-protocols.txt); TLS interception: cryptography; isolated browser: Node.js/Playwright with Edge on Windows or sandboxed Chromium on Linux; no runtime bundled", "files_sha256":entries,
                   "evidence":"All bundled fixtures are synthetic; no live engagement data or credentials included.",
                   "license":"Owner decision pending; no open-source license selected."}
         archive.writestr("PACKAGE_MANIFEST.json",json.dumps(manifest,indent=2))

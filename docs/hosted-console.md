@@ -33,3 +33,7 @@ Terminals are Linux-only and refuse root. Two active terminals, 30-minute shell 
 The embedded browser has a 1280×800 viewport, bounded screenshots/actions, serialized input and a connection lease. Clipboard paste uses the explicit input control. Browser-local storage token transfer, multi-role authorization matrices, browser extensions, remote host connectors and full competitor/scanner parity remain gaps. HTB VPN routing and a real HTB target require separate live acceptance with the supplied profile and target; fixture success proves neither.
 
 See the [operator workflow](operator-workflow.md), [native web coverage](native-web-coverage.md) and [vulnerability scans](vulnerability-scans.md). Public advisory findings remain applicability leads until patch/configuration and actual impact are validated. Inventory coverage now reports how many candidates are omitted by the first-100 display limit; use reviewed explicit/SBOM selections for further software.
+
+## Operator conveniences — 0.6.1
+
+Discovery prepares exact address/known-port or URL drafts for the console, without execution or authorization. Browser setup collapses after start, locks the active scope and provides explicit guarded page navigation. Authentication preparation retains the reviewed path prefix. Assessment drafts remain in tab memory by workspace; a new evidence handoff cannot overwrite an unfinished draft. See [Operator conveniences](operator-qol.md).

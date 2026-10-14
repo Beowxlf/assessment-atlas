@@ -27,6 +27,20 @@ const atlasTools=[
   {name:'Assessment activity',group:'Assessment',description:'Keep questions, decisions and next tests with evidence links.',view:'activity',keywords:'notes tasks record follow up'},
   {name:'Reports and exports',group:'Assessment',description:'Preview redactions and export the assessment.',view:'report',keywords:'handoff json printable report'}
 ];
+function operatorRecentTools() {
+  try { const names=JSON.parse(localStorage.getItem('atlas-recent-tools') || '[]'); return Array.isArray(names) ? [...new Set(names)].filter(name=>atlasTools.some(tool=>tool.name===name)).slice(0,6) : []; }
+  catch { return []; }
+}
+function operatorRememberTool(tool) {
+  if (!atlasTools.some(entry=>entry.name===tool.name)) return;
+  try { localStorage.setItem('atlas-recent-tools',JSON.stringify([tool.name,...operatorRecentTools().filter(name=>name!==tool.name)].slice(0,6))); } catch {}
+  operatorRecentView();
+}
+function operatorRecentView() {
+  if (!$('recent-tools')) return;
+  const names=operatorRecentTools(); clear('recent-tools'); $('recent-tools-section').hidden=!names.length;
+  for (const name of names) $('recent-tools').append(button(name,()=>operatorOpen(atlasTools.find(tool=>tool.name===name))));
+}
 function operatorArrangeNavigation(){
   if(!operatorInitialized)return;
   const nav=document.querySelector('nav');const more=$('extra-views');
@@ -48,9 +62,11 @@ async function operatorOpen(tool){
   if(tool.anchor){const target=$(tool.anchor);if(target){for(let p=target.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;target.scrollIntoView({block:'center'});target.focus();}}
   else {const heading=$(tool.view)?.querySelector('h1');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
   operatorArrangeNavigation();
+  operatorRememberTool(tool);
 }
 function operatorToolsView(container,query,compact=false){
   container.replaceChildren();const words=query.toLowerCase().trim().split(/\s+/).filter(Boolean);const matches=atlasTools.filter(t=>words.every(w=>(t.name+' '+t.group+' '+t.description+' '+t.keywords).toLowerCase().includes(w)));
+  if(compact&&!words.length){const recent=operatorRecentTools();matches.sort((a,b)=>(recent.includes(a.name)?recent.indexOf(a.name):99)-(recent.includes(b.name)?recent.indexOf(b.name):99));}
   for(const tool of matches){const card=el(compact?'div':'article','',compact?'list-item':'card tool-card');card.append(el('p',tool.group,'eyebrow'),el('h2',tool.name),el('p',tool.description,'muted'),button('Open '+tool.name,async()=>{if($('tool-dialog').open)$('tool-dialog').close('navigate');await operatorOpen(tool);}));container.append(card);}
   if(!matches.length)container.append(el('p','No matching tool. Try a task such as discovery, replay, authentication, CVE, or decoder.','muted'));
   if(!compact)$('tools-count').textContent=matches.length+' available tools · opening a tool prepares its controls; collection starts only when you choose Start or Send.';
@@ -69,12 +85,12 @@ function operatorURLs(node){
   }return urls.slice(0,20);
 }
 async function operatorPrepareWeb(entry){
-  await operatorOpen({view:'web',tab:'crawl'});for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();$('web-url').value=new URL(entry.url).origin+'/';$('web-request-url').value=entry.url;$('web-session').value='';webClearAuth();$('web-authorized').checked=false;
+  const workspace=state.id;await operatorOpen({view:'web',tab:'crawl'});if(state?.id!==workspace)return;for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();$('web-url').value=new URL(entry.url).origin+'/';$('web-request-url').value=entry.url;$('web-session').value='';webClearAuth();$('web-authorized').checked=false;
   for(const id of ['web-auth-check','web-auth-marker','web-auth-origins','web-login-url','web-login-preflight','web-login-csrf','web-login-bearer','web-protected-marker','web-audit-requests','web-custom-checks','web-schema','web-positions','web-canary-path','web-canary-marker','web-canary-url'])$(id).value='';$('web-auth-settings').hidden=true;$('web-auth-toggle').setAttribute('aria-expanded','false');$('web-active-audit').checked=false;$('web-oob-select').value='';document.querySelectorAll('#web-checks input, #web-more-checks input').forEach(input=>input.checked=input.value==='passive');for(const id of ['web-request-result','web-session-result','web-schema-result'])clear(id);
   $('web-url').focus();message('Discovery target prepared. '+entry.basis+'. Review the exact URL, paths and authorization before collecting.');
 }
 async function operatorPrepareVulnerability(node){
-  await operatorOpen({view:'vulnerability'});vulnSelected.clear();const original=node.members[0];$('vuln-filter').value=original;$('vuln-asset').value=original;$('vuln-sbom-asset').value=original;vulnInventoryView();
+  const workspace=state.id;await operatorOpen({view:'vulnerability'});if(state?.id!==workspace)return;vulnSelected.clear();const original=node.members[0];$('vuln-filter').value=original;$('vuln-asset').value=original;$('vuln-sbom-asset').value=original;vulnInventoryView();
   message('Software inventory prepared for '+node.label+'. Review and select precise identities before scanning.');
 }
 function operatorTargetView(){
@@ -82,7 +98,12 @@ function operatorTargetView(){
   clear('discovery-selection');const node=state?.nodes.find(n=>n.id===operatorTarget);if(!node){$('discovery-selection').append(el('p','Select a target to inspect its evidence and prepare the next tool.','muted'));return;}
   const related=operatorRelated(node);const observations=state.observations.filter(o=>related.has(o.subject)||related.has(o.target));const sources=state.imports.filter(i=>observations.some(o=>o.import_id===i.id));const findings=state.findings.filter(f=>related.has(f.subject));
   $('discovery-selection').append(el('p','SELECTED TARGET','eyebrow'),el('h2',node.label),el('p',node.kind+' · '+(node.addresses.join(', ')||'Address not established'),'muted'),el('p',observations.length+' related observations · '+sources.length+' source snapshots · '+findings.length+' findings','subline'),button('Inspect target evidence',()=>nodeDetails(node)),button('Prepare software vulnerability scan',()=>operatorPrepareVulnerability(node)));
-  for(const entry of operatorURLs(node))$('discovery-selection').append(el('p',entry.url+' · '+entry.basis,'subline'),button('Prepare web discovery',()=>operatorPrepareWeb(entry)));
+  for(const address of node.addresses.filter(address=>/^\d{1,3}(\.\d{1,3}){3}$/.test(address)&&address.split('.').every(part=>Number(part)<=255))) {
+    $('discovery-selection').append(button('Prepare terminal for '+address,()=>consolePrepareTerminal(node,address)),button('Copy '+address,async()=>{
+      try {await navigator.clipboard.writeText(address);message('Target address copied.');}catch{details('Target address',[{address,help:'Select this address and copy it manually.'}]);}
+    }));
+  }
+  for(const entry of operatorURLs(node))$('discovery-selection').append(el('p',entry.url+' · '+entry.basis,'subline'),button('Prepare web discovery',()=>operatorPrepareWeb(entry)),button('Prepare embedded browser',()=>consolePrepareBrowser(node,entry)));
   if(!operatorURLs(node).length)$('discovery-selection').append(el('p','No reviewed web URL yet. Open Web discovery to enter one explicitly.','muted'),button('Open Web discovery',()=>operatorOpen({view:'web',tab:'crawl'})));
   for(const source of sources.slice(0,5))$('discovery-selection').append(el('p',source.source+' · '+source.imported_at+' · '+source.vantage,'subline'));
   $('discovery-selection').append(el('p','Source names/addresses and graph relationships do not establish authorization or physical wiring. Tool handoffs prepare controls and never start a request.','muted'));
@@ -104,7 +125,7 @@ function operatorDiscoveryView(){
 window.atlasOperatorRefresh=()=>{
   if(!operatorInitialized)return;const changed=operatorWorkspace!==(state?.id||'');if(changed){operatorWorkspace=state?.id||'';operatorTarget='';$('discovery-search').value='';$('discovery-kind').value='';$('tools-search').value='';}
   operatorArrangeNavigation();operatorDiscoveryView();if(changed||!$('tools-list').children.length)operatorToolsView($('tools-list'),$('tools-search').value);
-  operatorContextView();
+  operatorContextView();operatorRecentView();
 };
 window.atlasOperatorShow=()=>{operatorArrangeNavigation();if(currentView==='discovery')operatorDiscoveryView();};
 run(async()=>{
@@ -115,12 +136,20 @@ run(async()=>{
   const toolbar=el('div','','toolbar');const search=el('label','Find target');const input=el('input');input.id='discovery-search';input.type='search';input.placeholder='Name or address';search.append(input);const kind=el('label','Target type');const select=el('select');select.id='discovery-kind';for(const [value,title] of [['','All identities'],['device','Devices'],['service','Services'],['application','Applications'],['web resource','Web endpoints']])select.append(new Option(title,value));kind.append(select);toolbar.append(search,kind,button('Explore network map',()=>operatorOpen({view:'map'})));discovery.append(toolbar);
   const workspace=el('div','','discovery-workspace');const targets=el('article','','card');targets.id='discovery-targets';const selection=el('article','','card');selection.id='discovery-selection';workspace.append(targets,selection);discovery.append(workspace);const jobs=el('article','','card');jobs.append(el('h2','Recent runs and coverage'));const jobList=el('div');jobList.id='operator-jobs';jobs.append(jobList);discovery.append(jobs);main.append(discovery);
   const tools=el('section');tools.id='tools';tools.className='view';tools.hidden=true;tools.append(el('p','FIND A TOOL BY ITS PURPOSE','eyebrow'),el('h1','Tools'),el('p','Discovery, testing and assessment tools in one place. Search a task or familiar tool name.'));const toolLabel=el('label','Find a tool');const toolSearch=el('input');toolSearch.id='tools-search';toolSearch.type='search';toolSearch.placeholder='Discovery, Repeater, CVE, authentication…';toolLabel.append(toolSearch);const count=el('p','','subline');count.id='tools-count';const list=el('div','','tools-grid');list.id='tools-list';tools.append(toolLabel,count,list);main.append(tools);
+  const recent=el('article','','card');recent.id='recent-tools-section';recent.hidden=true;recent.append(el('h2','Recently used tools'));const recentList=el('div','','button-row');recentList.id='recent-tools';recent.append(recentList);tools.insertBefore(recent,toolLabel);
   const nav=document.querySelector('nav');const more=el('details');more.id='extra-views';more.append(el('summary','More workspace views'));nav.append(more);
   const finder=button('Find a tool',()=>{operatorToolsView($('tool-dialog-results'),'',true);$('tool-dialog-search').value='';$('tool-dialog').returnValue='';$('tool-dialog').showModal();$('tool-dialog-search').focus();});finder.id='tool-finder';finder.setAttribute('aria-keyshortcuts','Control+K Meta+K');document.querySelector('header').insertBefore(finder,document.querySelector('.local-badge'));
-  const dialog=el('dialog');dialog.id='tool-dialog';const dialogHead=el('div','','dialog-heading');dialogHead.append(el('h2','Find a tool'),button('Close tool finder',()=>dialog.close()));const dialogLabel=el('label','Search tools');const dialogInput=el('input');dialogInput.id='tool-dialog-search';dialogInput.type='search';dialogLabel.append(dialogInput);const results=el('div');results.id='tool-dialog-results';dialog.append(dialogHead,dialogLabel,el('p','Search a task or tool. Escape closes this panel.','muted'),results);document.body.append(dialog);
+  const dialog=el('dialog');dialog.id='tool-dialog';const dialogHead=el('div','','dialog-heading');dialogHead.append(el('h2','Find a tool'),button('Close tool finder',()=>dialog.close()));const dialogLabel=el('label','Search tools');const dialogInput=el('input');dialogInput.id='tool-dialog-search';dialogInput.type='search';dialogLabel.append(dialogInput);const results=el('div');results.id='tool-dialog-results';dialog.append(dialogHead,dialogLabel,el('p','Enter opens the first match. Arrow keys move between results; Escape closes this panel. Recently used tools appear first when search is empty.','muted'),results);document.body.append(dialog);
   const flow=el('article','','card workflow-strip');flow.id='operator-workflow';flow.append(el('h2','Move the assessment forward'));for(const [text,view] of [['1 · Discover targets','discovery'],['2 · Choose a tool','tools'],['3 · Review findings','findings'],['4 · Report evidence','report']])flow.append(button(text,()=>operatorOpen({view})));$('overview').insertBefore(flow,$('summary'));
   dialog.addEventListener('close',()=>{if(dialog.returnValue!=='navigate')finder.focus();});
   dialog.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();dialog.close('');}},true);
+  dialog.addEventListener('keydown',event=>{
+    if(event.ctrlKey||event.metaKey||event.altKey)return;
+    const buttons=[...results.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
+    if(event.key==='Enter'&&event.target===dialogInput){event.preventDefault();buttons[0]?.click();}
+    else if(event.key==='ArrowDown'&&(event.target===dialogInput||index>=0)){event.preventDefault();buttons[Math.min(index+1,buttons.length-1)]?.focus();}
+    else if(event.key==='ArrowUp'&&index>=0){event.preventDefault();if(index===0)dialogInput.focus();else buttons[index-1].focus();}
+  });
   const evidenceActions=el('div','','button-row');evidenceActions.append(button('Open assessment activity',()=>operatorOpen({view:'activity'})),button('Import more evidence',()=>operatorOpen({view:'import'})));$('evidence').insertBefore(evidenceActions,$('evidence-search').closest('label'));
   input.addEventListener('input',operatorDiscoveryView);select.addEventListener('change',operatorDiscoveryView);toolSearch.addEventListener('input',()=>operatorToolsView(list,toolSearch.value));dialogInput.addEventListener('input',()=>operatorToolsView(results,dialogInput.value,true));document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&!e.target.closest?.('#terminal-screen,#embedded-screen')){e.preventDefault();finder.click();}});
   operatorInitialized=true;window.atlasOperatorRefresh();

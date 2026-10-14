@@ -1,4 +1,4 @@
-# Getting started with Assessment Atlas 0.5.0
+# Getting started with Assessment Atlas 0.6.1
 
 ## Open the application
 
@@ -27,7 +27,7 @@ On Windows the default database is `%LOCALAPPDATA%\AssessmentAtlas\atlas.sqlite3
 
 Keep original input files outside the repository in your controlled evidence store. Atlas records the SHA-256 of imported UTF-8 bytes and their original filename reference, plus sanitized normalized excerpts; it does not retain raw source bytes. Selected long strings are capped at 12,000 characters. Secret scrubbing is best effort.
 
-Versions 0.2.0 through 0.5.0 use database schema 2 and do not rewrite historical observations. Opening schema 1 creates an exact backup before the upgrade. The web adapter is revision 4, Nmap is revision 3 with retained CPE children, and other legacy adapters remain revision 2. Nmap forced `up`/`user-set` is unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under a newer adapter creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
+Versions 0.2.0 through 0.6.1 use database schema 2 and do not rewrite historical observations. Opening schema 1 creates an exact backup before the upgrade. The web adapter is revision 4, Nmap is revision 3 with retained CPE children, and other legacy adapters remain revision 2. Nmap forced `up`/`user-set` is unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under a newer adapter creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
 
 Stop the application before copying the database for backup. Restore to an empty data directory with the same application/schema version; preserve the prior database separately. Results exports are reports, not restorable workspace backups. Newer database schema versions are rejected rather than silently rewritten.
 
@@ -46,3 +46,5 @@ Open Web workbench for deliberately scoped native collection, request comparison
 Use **Discovery** as the target workspace and **Tools** (or **Ctrl/Command+K**) to find a task. Selected-target actions prepare the next tool without starting collection. Review URL drafts and keep the source/evidence limitations visible. Authentication settings open through **Configure authentication**. See [Operator workflow](docs/operator-workflow.md).
 
 For software scans, review exact CPE/package inventory or an SBOM tied to an existing asset. Use inert loaded JSON data, or explicitly allow software-identity queries to fixed public APIs. Matches go directly to Findings with immutable source snapshots and inventory evidence. KEV and EPSS remain dated prioritization context; no match is not a clean verdict. Read [Public vulnerability scans](docs/vulnerability-scans.md). Back up the separate public cache alongside the assessment database while the app is stopped.
+
+[Operator conveniences](docs/operator-qol.md) explains prepared console handoffs, finding filters, recent tools, shortcuts and draft recovery. Drafts remain only in the current tab; save before reload or sign-out.

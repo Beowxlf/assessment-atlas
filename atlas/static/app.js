@@ -1,6 +1,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let state = null, nonce = '', currentView = 'overview', pending = null, zoom = 1;
+let state = null, nonce = '', currentView = 'overview', pending = null, zoom = 1, workspaceLoad = 0;
+const recordFields = ['kind','subject','title','details','evidence','status'];
+const recordDrafts = new Map();
+let recordDraftWorkspace = '', recordSaving = false, findingWorkspace = '';
 const NS = 'http://www.w3.org/2000/svg';
 function el(tag, text = '', cls = '') { const n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; }
 function clear(id) { $(id).replaceChildren(); return $(id); }
@@ -15,6 +18,28 @@ async function api(path, data) {
 function needsWorkspace() { if (!state) throw new Error('Create or choose a workspace first.'); }
 function label(id) { return state?.entities.find(e => e.id === id)?.label || 'Entire engagement'; }
 function canonical(id) { return state.canonical[id] || id; }
+function recordValues() { return Object.fromEntries(recordFields.map(field => [field, $('record-'+field).value])); }
+function rememberRecordDraft() {
+  if (!recordDraftWorkspace) return;
+  const draft = recordValues();
+  if (draft.title.trim() || draft.details.trim() || draft.evidence.trim()) recordDrafts.set(recordDraftWorkspace, draft);
+  else recordDrafts.delete(recordDraftWorkspace);
+  $('record-draft-status').textContent = recordDrafts.has(recordDraftWorkspace) ? 'Unfinished draft · kept in this tab for this workspace.' : 'No unfinished draft.';
+}
+function restoreRecordDraft() {
+  recordDraftWorkspace = state?.id || '';
+  $('record-form').reset();
+  const draft = recordDrafts.get(recordDraftWorkspace);
+  if (draft) for (const field of recordFields) $('record-'+field).value = field === 'subject' ? state.canonical[draft[field]] || draft[field] : draft[field];
+  $('record-draft-status').textContent = draft ? 'Unfinished draft · kept in this tab for this workspace.' : 'No unfinished draft.';
+}
+function requireEmptyRecordDraft() {
+  rememberRecordDraft();
+  if (recordDrafts.has(state.id)) {
+    show('activity'); $('record-title').focus();
+    throw new Error('Save the unfinished record first. Your selected excerpt is still in Evidence to finding.');
+  }
+}
 function show(view) {
   window.scrollTo({top:0,left:0});
   currentView = view; document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== view);
@@ -30,10 +55,14 @@ async function refreshList(selected) {
   return workspaces;
 }
 async function load(id) {
-  state = id ? await api('workspace?id=' + encodeURIComponent(id)) : null;
+  const request=++workspaceLoad;
+  const model=id ? await api('workspace?id=' + encodeURIComponent(id)) : null;
+  if(request!==workspaceLoad)return;
+  state=model;
   localStorage.setItem('atlas-workspace',id || ''); pending = null; clear('import-preview'); render();
 }
 function render() {
+  rememberRecordDraft();
   $('workspace-title').textContent = state?.name || 'Make the evidence connect.';
   $('scope').textContent = state?.scope || 'Import discoveries, explore relationships, and keep the reasoning behind every conclusion.';
   $('welcome').hidden = !!state; clear('summary'); clear('source-summary'); clear('health-summary');
@@ -45,14 +74,13 @@ function render() {
     if (!state.imports.length) $('source-summary').append(el('p','No sources yet. Import a result file to begin.','muted'));
     $('health-summary').textContent = `${state.candidates.length} identity suggestions${state.candidates_limited?' (suggestion limit reached; manually select other candidates as needed)':''} · ${state.conflicts.length} sets of divergent observations. These remain visible until reviewed.`;
   }
-  populateFilters(); renderGraph(); renderIdentities(); renderEvidence(); renderFindings(); renderManualFindings(); renderRecords(); renderHistory(); renderExportSelection();
+  populateFilters(); renderGraph(); renderIdentities(); restoreRecordDraft(); renderEvidence(); renderFindings(); renderRecords(); renderHistory(); renderExportSelection();
   if(window.atlasWebRefresh)window.atlasWebRefresh();
   if(window.atlasVulnerabilityRefresh)window.atlasVulnerabilityRefresh();
   if(window.atlasOperatorRefresh)window.atlasOperatorRefresh();
   if(window.atlasConsoleRefresh)window.atlasConsoleRefresh();
 }
 function options(id, nodes, emptyText) { const select=clear(id); if(emptyText) select.append(new Option(emptyText,'')); for(const n of nodes) select.append(new Option(n.label + ' · ' + n.kind,n.id)); }
-function renderManualFindings(){const findings=(state?.records||[]).filter(r=>r.kind==='finding');if(findings.length)$('finding-list').querySelector('.empty')?.remove();for(const record of findings){const card=el('article','','card');card.append(badge('manual finding'),el('h2',record.title),el('p',label(record.subject),'muted'),el('p',record.details),el('p','Evidence: '+(record.evidence_refs||'No evidence reference supplied'),'subline'),button('Inspect assessment finding',()=>details(record.title,[record,...state.observations.filter(o=>(record.evidence_refs||'').includes(o.id))])),reviewForm(record,'records'));$('finding-list').append(card);}}
 function populateFilters() {
   const saved = ['edge-filter','source-filter'].map(id=>$(id).value);
   clear('edge-filter').append(new Option('All types','')); clear('source-filter').append(new Option('All sources & history',''));
@@ -115,7 +143,45 @@ function findingControls(f){
   const imports=state.imports.filter(s=>s.id===f.import_id||ids.has(s.event_id));const sourceIds=new Set(imports.map(s=>s.id));
   details(f.title+' · test and controls',[{finding:f,source_captures:imports,observations:state.observations.filter(o=>sourceIds.has(o.import_id)),limit:'Source assertions remain scanner-reported. Authentication context is a checked session, not proof that every endpoint requires login.'}]);
 }
-function renderFindings(){clear('finding-list');for(const f of state?.findings||[]){const card=el('article','','card');card.append(badge(f.severity),badge(f.validation),el('h2',f.title),el('p',label(f.subject)+' · '+f.external_id,'muted'),el('p',f.description),button('Inspect source',()=>details(f.title,[f,state.imports.find(s=>s.id===f.import_id)||{}])),button(f.origin==='public-advisory-match'?'Inspect advisory and inventory evidence':'Inspect test and controls',()=>findingControls(f)),reviewForm(f,'findings'));if(f.origin==='public-advisory-match'){const context=state.observations.find(o=>o.import_id===f.import_id&&o.kind==='vulnerability match')?.value.priority_context;if(context){const kev=context.known_exploited===true?'KEV source lists exploitation in the wild':context.known_exploited===false?'Not listed in the captured complete KEV catalog':'KEV coverage unknown';card.append(el('p',kev+' · source dates/authenticity are retained in evidence','subline'));for(const score of context.epss||[])card.append(el('p',score.id+' · EPSS '+(score.probability*100).toFixed(2)+'% · percentile '+(score.percentile*100).toFixed(2)+' · '+(score.score_date||'date unknown')+(score.stale_or_unknown_date?' · stale/unknown date':'')+' · probability context, separate from severity','subline'));}}if(f.review_notes)card.append(el('p',f.review_notes,'subline'));$('finding-list').append(card);}if(!state?.findings.length)$('finding-list').append(el('div','No source-reported findings yet. Scan reviewed software or import results to begin.','empty'));}
+function clearFindingFilters() {
+  for (const field of ['search','status','severity','type']) $('finding-'+field).value = '';
+}
+function renderFindings() {
+  if (findingWorkspace !== (state?.id || '')) { findingWorkspace = state?.id || ''; clearFindingFilters(); }
+  clear('finding-list');
+  const manual = (state?.records || []).filter(r => r.kind === 'finding');
+  const entries = [...(state?.findings || []).map(record => ({record,type:'source'})), ...manual.map(record => ({record,type:'manual'}))];
+  const query = $('finding-search').value.toLowerCase().trim();
+  const matches = entries.filter(({record:r,type}) =>
+    (!$('finding-status').value || r.status === $('finding-status').value) &&
+    (!$('finding-severity').value || (r.severity || 'unrated') === $('finding-severity').value) &&
+    (!$('finding-type').value || type === $('finding-type').value) &&
+    (!query || [r.title,r.description,r.details,r.external_id,r.evidence_refs,r.review_notes,label(r.subject)].join(' ').toLowerCase().includes(query)));
+  $('finding-count').textContent = matches.length+' of '+entries.length+' findings · '+(state?.findings.length || 0)+' source assertions · '+manual.length+' manual findings. Filters affect this view; reports keep their own selection.';
+  for (const {record:f,type} of matches) {
+    const card = el('article','','card finding-card');
+    card.append(badge(f.severity || 'unrated'),badge(type === 'manual' ? 'manual finding' : f.validation),badge(f.status),el('h2',f.title));
+    if (type === 'manual') {
+      card.append(el('p',label(f.subject),'muted'),el('p',f.details),el('p','Evidence: '+(f.evidence_refs || 'No evidence reference supplied'),'subline'),
+        button('Inspect assessment finding',()=>details(f.title,[f,...state.observations.filter(o=>(f.evidence_refs || '').includes(o.id))])),reviewForm(f,'records'));
+    } else {
+      card.append(el('p',label(f.subject)+' · '+f.external_id,'muted'),el('p',f.description),
+        button('Inspect source',()=>details(f.title,[f,state.imports.find(s=>s.id===f.import_id) || {}])),
+        button(f.origin === 'public-advisory-match' ? 'Inspect advisory and inventory evidence' : 'Inspect test and controls',()=>findingControls(f)),reviewForm(f,'findings'));
+      if (f.origin === 'public-advisory-match') {
+        const context = state.observations.find(o=>o.import_id===f.import_id && o.kind==='vulnerability match')?.value.priority_context;
+        if (context) {
+          const kev = context.known_exploited === true ? 'KEV source lists exploitation in the wild' : context.known_exploited === false ? 'Not listed in the captured complete KEV catalog' : 'KEV coverage unknown';
+          card.append(el('p',kev+' · source dates/authenticity are retained in evidence','subline'));
+          for (const score of context.epss || []) card.append(el('p',score.id+' · EPSS '+(score.probability*100).toFixed(2)+'% · percentile '+(score.percentile*100).toFixed(2)+' · '+(score.score_date || 'date unknown')+(score.stale_or_unknown_date ? ' · stale/unknown date' : '')+' · probability context, separate from severity','subline'));
+        }
+      }
+    }
+    if (f.review_notes) card.append(el('p',f.review_notes,'subline'));
+    $('finding-list').append(card);
+  }
+  if (!matches.length) $('finding-list').append(el('div',entries.length ? 'No findings match these filters. Clear filters to see the full assessment.' : 'No findings yet. Add a manual finding, scan reviewed software or import results to begin.','empty'));
+}
 function renderRecords(){clear('records-list');for(const r of [...(state?.records||[])].reverse()){const row=el('div','','list-item');row.append(badge(r.kind),badge(r.status),el('h3',r.title),el('p',r.details),el('p',label(r.subject)+' · Evidence: '+(r.evidence_refs||'Not supplied'),'subline'),reviewForm(r,'records'));$('records-list').append(row);}if(!state?.records.length)$('records-list').append(el('p','No activity yet. Record a question or next test.','muted'));}
 function renderHistory(){clear('history');for(const item of [...(state?.history||[])].reverse())$('history').append(el('div',item.at+' · '+item.action+' · '+item.detail,'list-item'));}
 function renderExportSelection(){const f=filters();$('export-selection').textContent=`Selection: ${f.kind||'all connection types'} · ${f.claim||'all claim states'} · ${f.import_id?state?.imports.find(i=>i.id===f.import_id)?.filename:'all source history'}. Identity and assessment context are retained.`;}
@@ -132,8 +198,24 @@ $('demo').addEventListener('click',()=>run(async()=>{state=await api('demo',{});
 ['edge-filter','claim-filter','source-filter'].forEach(id=>$(id).addEventListener('change',()=>{zoom=1;renderGraph();renderExportSelection();}));
 $('zoom-in').addEventListener('click',()=>{zoom=Math.min(4,zoom*1.25);renderGraph();});$('zoom-out').addEventListener('click',()=>{zoom=Math.max(.5,zoom/1.25);renderGraph();});$('reset-map').addEventListener('click',()=>{zoom=1;renderGraph();});
 $('evidence-search').addEventListener('input',renderEvidence);
+for (const field of ['search','status','severity','type']) $('finding-'+field).addEventListener('input',renderFindings);
+$('finding-clear').addEventListener('click',()=>{clearFindingFilters();renderFindings();$('finding-search').focus();});
+$('record-form').addEventListener('input',rememberRecordDraft);
+document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'&&currentView==='activity'&&event.target.closest?.('#record-form')){event.preventDefault();if(!recordSaving)$('record-form').requestSubmit();}});
 $('reconcile-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{needsWorkspace();state=await api('reconcile',{workspace:state.id,left:$('identity-left').value,right:$('identity-right').value,reason:$('identity-reason').value});$('identity-reason').value='';render();message('Identities linked by your recorded decision. Conflicting and historical observations remain available.');});});
-$('record-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{needsWorkspace();state=await api('record',{workspace:state.id,kind:$('record-kind').value,subject:$('record-subject').value,title:$('record-title').value,details:$('record-details').value,evidence_refs:$('record-evidence').value,status:$('record-status').value});$('record-form').reset();render();message('Assessment record saved.');});});
+$('record-form').addEventListener('submit',e=>{e.preventDefault();if(recordSaving)return;run(async()=>{
+  needsWorkspace(); rememberRecordDraft(); const workspace=state.id,draft=recordValues(); recordSaving=true;
+  const submit=$('record-form').querySelector('button.primary'); submit.disabled=true;
+  try {
+    const result=await api('record',{workspace,kind:draft.kind,subject:draft.subject,title:draft.title,details:draft.details,evidence_refs:draft.evidence,status:draft.status});
+    // Preserve edits made during the request, including a draft in another workspace.
+    if(JSON.stringify(recordDrafts.get(workspace))===JSON.stringify(draft)) {
+      recordDrafts.delete(workspace);
+      if(recordDraftWorkspace===workspace){$('record-form').reset();recordDraftWorkspace='';}
+    }
+    if(state?.id===workspace){state=result;render();message('Assessment record saved.');}
+  } finally {recordSaving=false;submit.disabled=false;}
+});});
 $('import-form').addEventListener('input',()=>{pending=null;clear('import-preview');});
 $('import-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{needsWorkspace();const file=$('import-file').files[0];if(!file)throw new Error('Choose a result file.');if(file.size>8*1024*1024)throw new Error('File exceeds the 8 MiB limit.');const content=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await file.arrayBuffer());pending={workspace:state.id,filename:file.name,content,source:$('import-source').value,context:{vantage:$('import-vantage').value,namespace:$('import-namespace').value,collected_at:$('import-time').value,source_version:$('import-version').value}};const result=await api('preview',pending);clear('import-preview').append(el('h2','Preview: '+file.name),el('p',`${result.entities} entities · ${result.observations} observations · ${result.findings} findings`),el('p',result.warnings.join(' '),'muted'),el('pre',JSON.stringify(result.sample,null,2)),button('Save this import',async()=>{if(!pending)throw new Error('Preview the file again.');const result=await api('import',pending);state=result.workspace;pending=null;clear('import-preview');render();message(result.duplicate?'Identical import already saved; no duplicate observations added.':'Import saved. Inspect the map and review any identity suggestions.');},'primary'));message('Preview ready. No changes have been saved yet.');});});
 $('manual-template').addEventListener('click',()=>download(JSON.stringify({format:'atlas-evidence/1',source_version:'manual 1',entities:[{key:'router',label:'Synthetic router',kind:'device',addresses:['192.0.2.1']},{key:'peer',label:'Synthetic peer',kind:'device',addresses:['192.0.2.20']}],observations:[{subject:'router',target:'peer',kind:'local neighbor',status:'unknown',basis:'manual',value:{reason:'Replace with collected evidence and its limits'},collected_at:null}],findings:[]},null,2),'common-evidence.json','application/json'));
