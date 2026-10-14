@@ -107,7 +107,7 @@ class Store:
         fingerprint = hashlib.sha256(json.dumps([digest, bundle.source, adapter_version, context], sort_keys=True).encode()).hexdigest()
         with self.lock:
             w = self.get(workspace)
-            existing = next((x for x in w["imports"] if x["fingerprint"] == fingerprint), None)
+            existing = next((x for x in w["imports"] if x.get("fingerprint") == fingerprint), None)
             event_id=getattr(bundle,'event_id',None)
             if event_id:
                 previous=next((x for x in w['imports'] if x.get('event_id')==event_id and x['source']==bundle.source),None)
@@ -153,6 +153,39 @@ class Store:
             run.update(copy.deepcopy(changes));self._save(w);return copy.deepcopy(run)
 
     def web_runs(self,workspace):return copy.deepcopy(self.get(workspace).get('web_runs',[]))
+
+    def vulnerability_result(self, workspace, run_id, result):
+        """Attach inferred advisory evidence to the existing asset, atomically."""
+        with self.lock:
+            w = self.get(workspace)
+            run = next((r for r in w.get('web_runs', []) if r['id'] == run_id and r['kind'] == 'vulnerability'), None)
+            subject = next((e for e in w['entities'] if e['id'] == result.get('subject')), None)
+            if not run or not subject:
+                raise ImportProblem('Vulnerability result asset/run is outside this workspace.')
+            event_id = run_id + ':' + hashlib.sha256(json.dumps([result['subject'],result['aliases']], sort_keys=True).encode()).hexdigest()[:32]
+            previous = next((i for i in w['imports'] if i.get('event_id') == event_id and i['source'] == 'vulnerability-scan'), None)
+            if previous:
+                return previous['id']
+            artifact = {'id': uid(), 'filename': 'advisory-match-' + event_id + '.json', 'event_id': event_id,
+                        'intake_mode': 'native analysis', 'source': 'vulnerability-scan', 'source_version': 'Atlas advisory correlation 1',
+                        'adapter_version': '1', 'imported_at': now(), 'namespace': subject.get('namespace', 'default'),
+                        'vantage': 'Local inventory/advisory analysis; no target probe',
+                        'sha256': hashlib.sha256(json.dumps(result,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
+                        'warnings': ['Advisory/version correlation is inferred, not exploitation or proof of missing patches. Offline feeds retain unverified publisher/freshness context.'],
+                        'raw_reference': 'Normalized correlation envelope; public snapshot and record digests retained. Raw inputs held by operator; no raw target evidence is collected.'}
+            observation = {'id': uid(), 'subject': subject['id'], 'target': None, 'kind': 'vulnerability match',
+                           'status': 'inferred', 'basis': 'manual', 'value': copy.deepcopy(result),
+                           'collected_at': now(), 'vantage': artifact['vantage'], 'import_id': artifact['id'], 'location': 'advisory-match'}
+            finding = {'id': uid(), 'subject': subject['id'], 'title': 'Potential ' + result['primary_id'] + ' software vulnerability',
+                       'severity': result['severity'], 'description': result['description'], 'external_id': result['primary_id'],
+                       'validation': 'scanner-reported', 'status': 'open', 'location': 'advisory-match', 'import_id': artifact['id'],
+                       'review_notes': '', 'origin': 'public-advisory-match', 'evidence_refs': [observation['id']],
+                       'aliases': result['aliases']}
+            w['imports'].append(artifact); w['observations'].append(observation); w['findings'].append(finding)
+            w['history'].append({'at': now(), 'action': 'vulnerability finding', 'detail': result['primary_id'] + ' source-reported match',
+                                 'run_id': run_id, 'import_id': artifact['id']})
+            self._save(w)
+            return artifact['id']
 
     def reconcile(self, workspace, left, right, reason):
         with self.lock:
@@ -297,6 +330,8 @@ class Store:
         if not identifiers:
             for run in w.get('web_runs',[]):
                 run['plan']='[withheld]';run['errors']=['[withheld]' for _ in run.get('errors',[])];run['reason']='[withheld]'
+                for row in run.get('coverage', []):
+                    row['identity']='[withheld]';row['unknown_details']='[withheld]'
             for i, e in enumerate(w["entities"]):
                 e["label"] = "Entity " + str(i + 1)
                 e["addresses"] = []
@@ -334,7 +369,7 @@ def html_report(w):
     body = table("Inventory", w["nodes"], ["id", "label", "kind", "addresses"])
     body += table("Findings (source assertions)", w["findings"], ["subject", "title", "severity", "validation", "status", "description", "import_id", "location"])
     body += table("Assessment activity", w["records"], ["kind", "title", "status", "subject", "details", "evidence_refs", "at"])
-    body += table("Native web runs and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','message_count','websocket_messages','interactions','findings','oob_interactions','oob_import_ids','skipped','plan','errors','reason','import_ids'])
+    body += table("Native scans and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','software_identities','message_count','websocket_messages','interactions','findings','oob_interactions','oob_import_ids','skipped','plan','coverage','public_snapshots','errors','reason','import_ids'])
     body += table("Evidence and typed relationships", w["observations"], ["id", "subject", "target", "kind", "status", "basis", "value", "collected_at", "vantage", "import_id", "location"])
     body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "intake_mode", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])
     body += table("Divergent observations", w["conflicts"], ["subject", "kind", "observations", "reason"])

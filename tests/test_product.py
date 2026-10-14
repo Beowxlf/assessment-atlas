@@ -153,6 +153,7 @@ class StoreTests(unittest.TestCase):
         # Persist the v1 contract: it treated the scanner-forced host tag as observed.
         host.update(status="observed",basis="active test",value={"state":"up","reason":"user-set"})
         legacy.warnings=[]
+        legacy.adapter_version='1'
         with patch("atlas.store.VERSION","1"),patch("atlas.store.parse",return_value=legacy):
             old=self.store.import_file(self.workspace["id"],text,"old.xml","nmap",context)
         self.store.record(self.workspace["id"],{"kind":"note","title":"Historical interpretation","details":"Retain source evidence","evidence_refs":old["workspace"]["observations"][0]["id"],"status":"open"})
@@ -160,7 +161,7 @@ class StoreTests(unittest.TestCase):
         upgraded=Store(self.path)
         new=upgraded.import_file(self.workspace["id"],text,"old.xml","nmap",context)
         self.assertFalse(new["duplicate"])
-        self.assertEqual([i["adapter_version"] for i in new["workspace"]["imports"]],["1","2"])
+        self.assertEqual([i["adapter_version"] for i in new["workspace"]["imports"]],["1","3"])
         self.assertEqual(old["import"]["sha256"],new["import"]["sha256"])
         self.assertNotEqual(old["import"]["fingerprint"],new["import"]["fingerprint"])
         after=upgraded.get(self.workspace["id"])

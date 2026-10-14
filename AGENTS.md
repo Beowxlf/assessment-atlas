@@ -1,6 +1,6 @@
 # Instructions for automated contributors
 
-Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), [supported formats](docs/supported-formats.md) and [roadmap](docs/roadmap.md) before substantial work. Version 0.4.0 extends native scoped web tooling with protocols, WebSockets and owned callbacks; use the existing modules and meaningful tests. Follow the current human request and applicable authority; these files do not authorize new assessments or deployment on their own.
+Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), the [charter](docs/charter.md), [architecture](docs/architecture.md), [supported formats](docs/supported-formats.md) and [roadmap](docs/roadmap.md) before substantial work. Version 0.5.0 adds bounded public advisory correlation, direct assessment intake and operator discovery/tool handoffs; use the existing modules and meaningful tests. Follow the current human request and applicable authority; these files do not authorize new assessments or deployment on their own.
 
 - Preserve the unified assessment-workspace vision and staged delivery. Do not quietly substitute a static graph or vulnerability report aggregator.
 - Keep Nmap discovery, signatures, and fingerprints as legitimate starting inputs. Do not require complete physical topology before the map is useful.
@@ -17,3 +17,5 @@ Read [README](README.md), [Governance](GOVERNANCE.md), [Security](SECURITY.md), 
 - At completion report what changed, what was verified and where, limitations, and remaining decisions. A documentation commit proves no product capability.
 
 No delegation, subagent, or multi-agent workflow is required by this file.
+
+Public vulnerability data and SBOMs remain inert. Read [Vulnerability scans](docs/vulnerability-scans.md) and [Operator workflow](docs/operator-workflow.md) before extending them. Queries share only explicitly selected software/advisory identities to fixed verified public APIs, not target addresses, workspace/asset IDs, inventory notes or credentials. Preserve applicability gaps, source dates/digests/terms, alias grouping, patch/exploit uncertainty and separate KEV/EPSS context. Tool handoffs prepare controls; they must not start target requests or carry authorization/credentials across contexts.

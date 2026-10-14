@@ -81,3 +81,7 @@ Exports must preserve typed edges and provenance references plus time/vantage, u
 ## Native web implementation
 
 [ADR 0003](adr/0003-native-web-workbench.md) records actual native tool boundaries, logical web origin/resource/parameter entities, atlas-web/1 normalization, source/body digests, offline/native intake provenance, schema-2 exact backup and persisted run states. A proxy is an explicitly configured local tool, not an endpoint agent. Public CA input does not disable TLS; the isolated browser trusts only its ephemeral proxy CA pin while the proxy verifies upstream. The broader logical model above remains a destination, not a parity claim.
+
+## Native vulnerability and operator extension
+
+[ADR 0006](adr/0006-public-advisory-scans.md) adds a bounded public cache (schema 1), inventory-to-advisory jobs and direct inferred observations/findings on existing assets. Source snapshots and inventory references are copied into the assessment before cache replacement; main schema remains 2. Nmap adapter 3 retains CPEs. Public queries exclude target/credential/assessment identity fields. Discovery and a searchable tool directory prepare context without executing imported content or starting a target request. [Vulnerability scans](vulnerability-scans.md) and [operator workflow](operator-workflow.md) define exact contracts.

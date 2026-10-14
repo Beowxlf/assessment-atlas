@@ -35,3 +35,7 @@ Provide the affected commit or future version, impact, prerequisites, and a mini
 If a secret or real engagement artifact is committed, stop further propagation, notify the owner privately, revoke or rotate exposed credentials, assess affected access and copies, and arrange appropriate history cleanup and deletion. Removing the latest file alone does not remove history or downloaded copies. Record the containment and verification outcome without reproducing the secret.
 
 Related: [Governance](GOVERNANCE.md), [evidence lifecycle](docs/architecture.md), [delivery gates](docs/roadmap.md).
+
+## Public advisory boundary
+
+Public vulnerability imports/SBOMs are inert. Public API access is opt-in and limited to fixed verified HTTPS routes with public DNS pinning, no redirects, private-target fields, arbitrary API endpoint/key controls or certificate bypass. Queries disclose selected software/advisory identities; the shared local cache retains them and uploaded filenames. Source authenticity/age, applicability gaps, immutable assessment copies and separate exploitation-probability/severity context are required. See [Vulnerability scans](docs/vulnerability-scans.md). Prepared UI handoffs must reset authorization/secret request context and never trigger live collection.

@@ -1,6 +1,6 @@
 # Roadmap, owner decisions, and risks
 
-**Original planning baseline: October 12, 2026; updated October 14, 2026 after authorized native extensions.** Version 0.4.0 now extends the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
+**Original planning baseline: October 12, 2026; updated October 14, 2026 after authorized native extensions.** Version 0.5.0 now extends the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
 
 ## Current evidence and decisions
 
@@ -62,3 +62,7 @@ Brayden owns these decisions unless he delegates them explicitly. The table pres
 | Vision/effort mismatch | Broad product ambition without workload, budget or user trials → overcommitment | Finish a vertical workflow, measure usefulness, retain extensible boundaries; reassess after first-slice trial |
 
 Governance: [decision authority](../GOVERNANCE.md). Architecture changes: [ADRs](adr/README.md).
+
+## Implemented 0.5.0 extension
+
+The owner requested public vulnerability scans and a simpler operator workflow. [ADR 0006](adr/0006-public-advisory-scans.md) records fixed public NVD/OSV/GHSA applicability, separate CISA KEV/FIRST EPSS context, reviewed existing-asset inventory, immutable direct findings and a bounded local cache. Discovery/Tools now provide target inspection, prepared-context handoffs and a task/name directory. [Vulnerability coverage](vulnerability-scans.md) and [operator acceptance](operator-workflow.md) retain unknown applicability, source availability, explicit query disclosure and heuristic/browser versus real-operator limits. Broader authenticated package collection, distribution/backport-aware version semantics, universal SBOM coverage, bulk database mirroring, independent scanner accuracy benchmarks and competitor parity remain future work.

@@ -150,6 +150,7 @@ def nmap(text, context):
     if root.tag != "nmaprun":
         raise ImportProblem("Expected Nmap nmaprun XML.")
     b = Bundle("nmap", context)
+    b.adapter_version = '3'
     b.source_version = root.get("version", "unknown")
     for index, host in enumerate(root.findall("host")):
         loc = f"/nmaprun/host[{index + 1}]"
@@ -169,12 +170,16 @@ def nmap(text, context):
         for name in names:
             b.obs(key, "name", name, loc + "/hostnames", time=when)
         for osmatch in host.findall("os/osmatch"):
-            b.obs(key, "OS fingerprint", dict(osmatch.attrib), loc + "/os/osmatch", status="inferred", time=when)
+            signature = dict(osmatch.attrib)
+            signature['cpe'] = [c.text for c in osmatch.findall('osclass/cpe') if c.text]
+            b.obs(key, "OS fingerprint", signature, loc + "/os/osmatch", status="inferred", time=when)
         for i, port in enumerate(host.findall("ports/port")):
             service = port.find("service")
             state = port.find("state")
             attrs = {**port.attrib, "state": state.get("state", "unknown") if state is not None else "unknown",
                      "signature": dict(service.attrib) if service is not None else {}}
+            if service is not None:
+                attrs['signature']['cpe'] = [c.text for c in service.findall('cpe') if c.text]
             svc = b.entity(f"{key}:port:{i}", f"{port.get('portid')}/{port.get('protocol')} {(service.get('name') if service is not None else '')}", "service")
             b.obs(key, "service association", attrs, loc + f"/ports/port[{i+1}]", target=svc, time=when)
             for script in port.findall("script"):

@@ -16,6 +16,7 @@ async function webRefresh(fresh=false){
   if(webWorkspace!==(state?.id||'')){
     webWorkspace=state?.id||'';webCaptures=[];$('web-scope').reset();$('web-headers').value='';$('web-body').value='';$('web-url').value='';$('web-request-url').value='';clear('web-compare-left');clear('web-compare-right');clear('web-request-result');clear('web-comparison');clear('web-proxy-credentials');clear('web-intercepts');
     webClearAuth();for(const id of ['web-auth-check','web-auth-marker','web-auth-origins','web-protected-marker','web-audit-requests','web-custom-checks','web-schema','web-positions','web-utility-input','web-exclude-parameters'])$(id).value='';for(const id of ['web-session-result','web-schema-result','web-utility-result'])clear(id);clear('web-session').append(new Option('Unauthenticated',''));webBrowsers=[];webSockets=[];clear('web-ws-messages');clear('web-ws-select');clear('web-ws-evidence');clear('web-oob-token');clear('web-oob-events');$('web-oob-remote').checked=false;
+    $('web-auth-settings').hidden=true;$('web-auth-toggle').setAttribute('aria-expanded','false');
     for(const id of ['web-oob-advertise','web-ws-url','web-ws-message','web-ws-finding-title','web-ws-detail','web-canary-path','web-canary-marker','web-canary-url','web-login-url','web-login-preflight','web-login-csrf','web-login-bearer'])$(id).value='';$('web-session-label').value='Assessment session';$('web-active-audit').checked=false;document.querySelectorAll('#web-checks input, #web-more-checks input').forEach(input=>input.checked=input.value==='passive');
   }
   if(!state){clear('web-runs').append(el('p','Create or select a workspace before configuring live tools.','muted'));return;}
@@ -59,8 +60,8 @@ async function webRefresh(fresh=false){
     }
     for(const card of $('web-intercepts').children)if(!pending.has(card.id.replace('intercept-','')))card.remove();
     for(const browser of result.browsers)if(browser.error)$('web-proxy-status').append(el('p',browser.error,'muted'));
-    if(['web','findings','map'].includes(currentView)&&!document.activeElement?.closest('.review-form')){
-      const fresh=await api('workspace?id='+encodeURIComponent(id));if(state?.id===id&&fresh.observations.length!==state.observations.length){state=fresh;render();}
+    if(['web','findings','map','discovery'].includes(currentView)&&!document.activeElement?.closest('.review-form')){
+      const fresh=await api('workspace?id='+encodeURIComponent(id));if(state?.id===id&&(fresh.observations.length!==state.observations.length||JSON.stringify(fresh.web_runs)!==JSON.stringify(state.web_runs))){state=fresh;render();}
     }
   }finally{webPolling=false;finishPoll();}
 }
@@ -73,6 +74,7 @@ run(async()=>{
   const response=await fetch('/web-tools.html');if(!response.ok)throw new Error('Web tools could not load.');
   const wrapper=el('div');wrapper.innerHTML=await response.text();document.querySelector('main').append(wrapper.firstElementChild);
   const nav=el('button','Web workbench');nav.dataset.view='web';nav.addEventListener('click',()=>{show('web');run(webRefresh);});document.querySelector('nav').append(nav);
+  $('web-auth-toggle').addEventListener('click',()=>{const panel=$('web-auth-settings');panel.hidden=!panel.hidden;$('web-auth-toggle').setAttribute('aria-expanded',String(!panel.hidden));});
   const foot=document.querySelector('.sidebar-foot');for(const node of [...foot.childNodes])if(node!==$('version'))node.remove();foot.prepend(document.createTextNode('Imports stay local. Live tools use your explicit scope.'));
   document.querySelectorAll('[data-web-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.web-pane').forEach(p=>p.hidden=p.id!=='web-pane-'+b.dataset.webTab);document.querySelectorAll('[data-web-tab]').forEach(n=>n.classList.toggle('selected',n===b));}));
   $('web-crawl').addEventListener('submit',e=>{e.preventDefault();run(async()=>{await api('web/start',{workspace:state?.id,kind:'crawl',config:{...webConfig(),paths:webLines('web-paths'),crawl:$('web-follow').checked}});message('Bounded enumeration started. Partial results are saved as requests complete.');await webRefresh(true);});});
@@ -109,5 +111,5 @@ run(async()=>{
   $('web-oob-issue').addEventListener('click',()=>run(async()=>{const result=await api('web/oob/issue',{workspace:state?.id,id:$('web-oob-select').value,config:webRequestConfig(),parameter:$('web-parameter').value});$('web-oob-token').textContent=JSON.stringify(result,null,2);message('Token issued transiently. Matching HTTP/DNS interactions save evidence and findings automatically.');}));
   $('web-oob-stop').addEventListener('click',()=>run(async()=>{await api('web/oob/stop',{workspace:state?.id,id:$('web-oob-select').value});clear('web-oob-token');await webRefresh(true);}));
   $('web-refresh').addEventListener('click',()=>run(async()=>{needsWorkspace();await load(state.id);show('map');message('Showing collected network and web evidence. Logical resources are not physical wiring.');}));
-  await webRefresh(true);setInterval(()=>{if(['web','findings','map'].includes(currentView))run(webRefresh);},1500);
+  if(window.atlasOperatorRefresh)window.atlasOperatorRefresh();await webRefresh(true);setInterval(()=>{if(['web','findings','map','discovery'].includes(currentView))run(webRefresh);},1500);
 });

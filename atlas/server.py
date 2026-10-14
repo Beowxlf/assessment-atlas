@@ -15,6 +15,7 @@ from . import __version__
 from .importers import ImportProblem, parse, parse_json, MAX_BYTES
 from .store import Store, html_report
 from .web_tools import WebTools
+from .vulnerability_tools import VulnerabilityTools
 
 STATIC = Path(__file__).parent / "static"
 ROOT = Path(__file__).parent.parent
@@ -29,8 +30,10 @@ class AtlasServer(ThreadingHTTPServer):
         self.session = secrets.token_urlsafe(32)
         self.nonce = secrets.token_urlsafe(32)
         self.web = WebTools(store,self.server_address[1])
+        self.vulnerability = VulnerabilityTools(store)
 
     def server_close(self):
+        self.vulnerability.shutdown()
         self.web.shutdown()
         super().server_close()
 
@@ -77,6 +80,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.trusted_host():
             return self.respond({"error": "Unrecognized local host."}, 403)
         path = urlsplit(self.path).path
+        if path in ('/vulnerability-tools.js', '/vulnerability-tools.html', '/operator-tools.js'):
+            return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
         if path in ("/", "/app.js", "/web-tools.js", "/web-tools.html", "/styles.css"):
             file = STATIC / {"/": "index.html", "/app.js": "app.js", "/web-tools.js":"web-tools.js", "/web-tools.html":"web-tools.html", "/styles.css": "styles.css"}[path]
             mime = {"/": "text/html", "/app.js": "text/javascript", "/web-tools.js":"text/javascript", "/web-tools.html":"text/html", "/styles.css": "text/css"}[path]
@@ -84,6 +89,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authenticated():
             return self.respond({"error": "Open the local application first."}, 403)
         try:
+            if path == '/api/vulnerability/status':
+                query = parse_qs(urlsplit(self.path).query)
+                return self.respond(self.server.vulnerability.status(query.get('workspace', [''])[0]))
             if path in ('/api/web/status','/api/web/ca'):
                 query=parse_qs(urlsplit(self.path).query);workspace=query.get('workspace',[''])[0]
                 self.server.store.get(workspace)
@@ -133,6 +141,33 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             store = self.server.store
             workspace = data.get("workspace", "")
+            if path.startswith('/api/vulnerability/'):
+                if not isinstance(workspace, str):
+                    raise ImportProblem('Choose a workspace identifier.')
+                w = store.get(workspace); tools = self.server.vulnerability
+                if path in ('/api/vulnerability/start', '/api/vulnerability/refresh'):
+                    return self.respond(tools.start(workspace, data.get('config', {}), refresh=path.endswith('/refresh')))
+                if path == '/api/vulnerability/stop':
+                    return self.respond(tools.stop(workspace, data.get('id')))
+                if path in ('/api/vulnerability/cache/import', '/api/vulnerability/cache/clear'):
+                    with tools.lock:
+                        if tools.active():
+                            raise ImportProblem('Finish or stop the vulnerability job before changing its public cache.')
+                        if path.endswith('/clear'):
+                            tools.cache.clear(); return self.respond({'cleared': True, 'limit': 'Copied assessment evidence is retained.'})
+                        return self.respond(tools.cache.ingest(data.get('provider'), data.get('content'), data.get('filename', 'public-feed.json')))
+                if path == '/api/vulnerability/sbom':
+                    from .vulnerability_match import sbom_inventory, validate_inventory
+                    if not isinstance(data.get('subject'), str) or data['subject'] not in {e['id'] for e in w['entities']}:
+                        raise ImportProblem('Select an existing asset for this SBOM.')
+                    result = sbom_inventory(data.get('content'), data['subject'])
+                    if result['inventory']:
+                        result['inventory'] = validate_inventory(result['inventory'], w)
+                    return self.respond(result)
+                if path == '/api/vulnerability/inventory':
+                    from .vulnerability_match import validate_inventory
+                    return self.respond({'inventory': validate_inventory(data.get('inventory'), w)})
+                return self.respond({'error': 'Unknown vulnerability action.'}, 404)
             if path.startswith('/api/web/'):
                 store.get(workspace);tools=self.server.web;config=data.get('config',{})
                 if not isinstance(config,dict):raise ImportProblem('Tool configuration must be an object.')
@@ -213,6 +248,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/create":
                 return self.respond(Store.view(store.create(data.get("name"), data.get("scope", ""))))
             if path == "/api/delete":
+                if self.server.vulnerability.active(workspace):
+                    raise ImportProblem('Stop the vulnerability job before deleting this workspace.')
                 if any(j['workspace']==workspace and j['thread'].is_alive() for j in self.server.web.jobs.values()) or any(p.workspace==workspace and not p.closed for p in self.server.web.proxies.values()) or any(s.workspace==workspace and not s.closed for s in self.server.web.sockets.values()) or any(r.workspace==workspace and not r.closed for r in self.server.web.receivers.values()):raise ImportProblem('Stop active web runs, browsers, WebSockets and interaction receivers before deleting this workspace.')
                 store.delete(workspace, data.get("confirmation"))
                 for row in self.server.web.session_list(workspace):self.server.web.forget_session(workspace,row['id'])
