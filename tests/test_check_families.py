@@ -102,6 +102,9 @@ class FamilyTests(unittest.TestCase):
         for endpoint in ('vuln','fixed'):
             request={'url':self.origin+'/'+endpoint+'/xml','method':'POST','headers':[{'name':'Content-Type','value':'application/xml'}],'body':'<atlas>baseline</atlas>'};result=self.run_scan(url=self.origin+'/empty',checks=['xml-entity','oob-xml'],audit_requests=[request],oob_id=receiver.run['id']);self.assertEqual(result['state'],'completed');self.assertEqual(result['findings'],2 if endpoint=='vuln' else 0)
         result=self.run_scan(url=self.origin+'/vuln/fetch?q=base',checks=['oob-http'],oob_id=receiver.run['id']);self.assertEqual(result['state'],'completed');workspace=self.store.get(self.workspace['id']);self.assertEqual(len([f for f in workspace['findings'] if f['external_id']=='atlas-oob-http']),2);self.assertGreaterEqual(receiver.count,2)
+        late=receiver.allocate(self.origin+'/vuln/fetch?q=base','q',run_id=result['id'])
+        with urllib.request.urlopen(late['callback_url'],timeout=2) as response:self.assertEqual(response.status,204)
+        updated=next(r for r in self.store.web_runs(self.workspace['id']) if r['id']==result['id']);self.assertEqual(updated['state'],'completed');self.assertEqual(updated['oob_findings'],2);self.assertEqual(updated['findings'],2)
     def test_stateful_csrf_canary_positive_and_fixed(self):
         for endpoint,expected in [('vuln',1),('fixed',0)]:
             url=self.origin+'/'+endpoint+'/csrf';request={'url':url,'method':'POST','headers':[{'name':'Content-Type','value':'application/x-www-form-urlencoded'}],'body':'value=fixture&csrf=fixture-token'};result=self.run_scan(url=self.origin+'/empty',checks=['csrf-canary'],canary_url=url,canary_marker=MARKER,audit_requests=[request]);self.assertEqual(result['findings'],expected)

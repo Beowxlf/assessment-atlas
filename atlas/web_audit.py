@@ -6,6 +6,7 @@ import re
 import time
 import uuid
 from collections import deque
+from contextlib import nullcontext
 from urllib.parse import parse_qsl,urlencode,urlsplit,urlunsplit
 
 from .importers import ImportProblem
@@ -88,6 +89,13 @@ def run_scan(tools,workspace,run,scope,config,stop):
     plan=run['plan'];started=time.monotonic();count=0;imports=[];errors=[];skipped=0;audited=0;findings=0;reported=set();auth=None;last_guard=0;refreshes=0
     state='completed';reason='Audit queue exhausted';checks=config.get('checks',['passive']);excluded=config.get('exclude_parameters',[])
     receiver=tools.receivers.get(config.get('oob_id'))
+    def update_run(**values):
+        # Serialize summary + write with receipts, so a fast/late callback cannot
+        # be overwritten by a request or terminal-run update using stale totals.
+        with receiver.lock if receiver else nullcontext():
+            oob=receiver.summary_for(run['id']) if receiver else {'findings':0,'interactions':0,'import_ids':[]}
+            values.update(findings=findings+oob['findings'],oob_findings=oob['findings'],oob_interactions=oob['interactions'],oob_import_ids=oob['import_ids'])
+            tools.store.update_web_run(workspace,run['id'],**values)
     if not isinstance(excluded,list) or len(excluded)>100 or any(not isinstance(v,str) or len(v)>200 for v in excluded):raise ImportProblem('Excluded parameter names must be a bounded list.')
     def budget():
         if stop.is_set():raise Interrupted('cancelled','Operator stopped the job; completed evidence retained')
@@ -110,8 +118,7 @@ def run_scan(tools,workspace,run,scope,config,stop):
         event['authentication']={'mode':'anonymous control' if anonymous else 'session credentials' if auth and web_url(url)[0] in auth.origins else 'unauthenticated','session_verified':bool(auth and auth.verified and not anonymous),'purpose':purpose,'generation':auth.generation if auth else 0}
         imports.append(tools.capture(workspace,auth.scrub(event) if auth else event,'web-enumeration',{**config,'retain_body':False} if purpose=='login sequence' or session_problem else config))
         if event.get('error'):errors.append(event['error'])
-        oob=receiver.summary_for(run['id']) if receiver else {'findings':0}
-        tools.store.update_web_run(workspace,run['id'],requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,findings=findings+oob['findings'])
+        update_run(requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings)
         if session_problem:raise Interrupted('failed','Session cookie/token limits failed; completed metadata retained and auditing stopped')
         if auth and auth.verified and not anonymous and purpose=='audit' and event.get('response',{}).get('status') in (401,403):verify()
         return event
@@ -215,5 +222,4 @@ def run_scan(tools,workspace,run,scope,config,stop):
     except Exception:state='failed';reason='Audit processing failed; completed evidence retained'
     finally:
         if auth:auth.clear()
-        oob=receiver.summary_for(run['id']) if receiver else {'findings':0}
-        tools.store.update_web_run(workspace,run['id'],state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,findings=findings+oob['findings'],session_refreshes=refreshes,ended_at=now(),reason=reason)
+        update_run(state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,session_refreshes=refreshes,ended_at=now(),reason=reason)
