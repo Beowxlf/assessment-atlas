@@ -85,6 +85,15 @@ class WebTools:
         return config
     def capture(self,workspace,event,source,config):
         event=copy.deepcopy(event)
+        # A delayed probe can finish after its receiver has stopped and cleared
+        # its token table. Suppress the issued 192-bit token shape independently
+        # of that lifecycle, before any excerpt truncation or artifact hashing.
+        def callback_tokens(value,key=''):
+            if isinstance(value,str) and key in ('body','value'):return re.sub(r'(?i)(?<![0-9a-f])[0-9a-f]{48}(?![0-9a-f])','[callback/token value withheld]',value)
+            if isinstance(value,list):return [callback_tokens(v) for v in value]
+            if isinstance(value,dict):return {k:callback_tokens(v,k) for k,v in value.items()}
+            return value
+        event=callback_tokens(event)
         with self.lock:receivers=[r for r in self.receivers.values() if r.workspace==workspace and not r.closed]
         for receiver in receivers:event=receiver.scrub(event)
         for part in ('request','response'):
