@@ -10,6 +10,19 @@ from atlas.store import Store
 from atlas.terminal import Terminals
 
 
+class FixtureConnection(http.client.HTTPConnection):
+    """Deliver the fixture request together, including header-rejected bodies.
+
+    Windows can reset a socket when the server rejects headers before the
+    client's separately sent body arrives. Keep the same request/response
+    assertions without making this fixture depend on packet scheduling.
+    """
+    def send(self,data):
+        if not hasattr(self,'fixture_bytes'):self.fixture_bytes=[]
+        self.fixture_bytes.append(data)
+    def flush(self):super().send(b''.join(self.fixture_bytes))
+
+
 class HostedTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.password='synthetic-hosted-password-42'
@@ -19,13 +32,14 @@ class HostedTests(unittest.TestCase):
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
     def tearDown(self):self.server.shutdown();self.server.server_close();self.thread.join();self.temp.cleanup()
     def request(self,path,data=None,cookie='',nonce='',origin=True,host='atlas.example.test',proto='https'):
-        connection=http.client.HTTPConnection('127.0.0.1',self.server.server_address[1],timeout=10)
+        connection=FixtureConnection('127.0.0.1',self.server.server_address[1],timeout=10)
         headers={'Host':host,'X-Forwarded-Proto':proto}
         if data is not None:headers['Content-Type']='application/json'
         if origin:headers['Origin']='https://atlas.example.test'
         if cookie:headers['Cookie']=cookie
         if nonce:headers['X-Atlas-Nonce']=nonce
         connection.request('POST' if data is not None else 'GET',path,json.dumps(data) if data is not None else None,headers)
+        connection.flush()
         response=connection.getresponse();body=response.read();code=response.status;head=dict(response.getheaders());connection.close()
         return code,head,json.loads(body) if head.get('Content-Type','').startswith('application/json') else body.decode()
     def login(self):
