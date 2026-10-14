@@ -84,7 +84,7 @@ def normalize(text,context,source):
     if not isinstance(data,dict) or data.get('format')!='atlas-web/1':raise ImportProblem('Expected atlas-web/1.')
     mode=data.get('capture_mode','metadata')
     if mode not in ('metadata','redacted'):raise ImportProblem('Capture mode must be metadata or redacted.')
-    b=Bundle(source,context);b.source_version=clean(data.get('tool_version','unknown'));b.adapter_version='3'
+    b=Bundle(source,context);b.source_version=clean(data.get('tool_version','unknown'));b.adapter_version='4'
     events=items(data.get('events',[]),'events')
     if not 1<=len(events)<=100:raise ImportProblem('Web batches require 1–100 events.')
     if len(events)==1:
@@ -99,11 +99,12 @@ def normalize(text,context,source):
         basis='passive' if source in ('web-proxy','web-browser') else 'active test'
         loc=f'events[{i}]'
         device=b.entity('host:'+host,host,'device')
-        service=b.entity('service:'+origin,f'{port}/tcp '+urlsplit(origin).scheme,'service')
+        transport='udp (QUIC)' if event.get('http_version')=='HTTP/3' else 'tcp'
+        service=b.entity('service:'+origin+(':quic' if transport!='tcp' else ''),f'{port}/'+transport+' '+urlsplit(origin).scheme,'service')
         app=b.entity('origin:'+origin,origin,'web origin')
         resource=b.entity('resource:'+origin+path,origin+clean(path),'web resource')
         response=event.get('response')
-        status='observed' if isinstance(response,dict) and response.get('status') else 'unknown'
+        status='observed' if (isinstance(response,dict) and response.get('status')) or event.get('websocket') else 'unknown'
         b.obs(device,'web service association',{'origin':origin,'limit':'Logical HTTP service context, not physical topology.'},loc,status,basis,target=service,time=when)
         b.obs(service,'web origin',{'origin':origin},loc,status,basis,target=app,time=when)
         b.obs(app,'web resource',{'url':safe_url(url),'method':(event.get('request') or {}).get('method','unknown'),'http_status':response.get('status') if response else None},loc,status,basis,target=resource,time=when)
@@ -131,11 +132,18 @@ def normalize(text,context,source):
         if event.get('error'):b.obs(resource,'web request failure',{'error':clean(event['error'])},loc,'unknown',basis,time=when)
         if event.get('interception'):b.obs(resource,'live request interception',event['interception'],loc,basis='manual',time=when)
         if event.get('test'):b.obs(resource,'selected parameter test',event['test'],loc,basis='active test',time=when)
+        if event.get('websocket'):
+            ws=event['websocket']
+            if not isinstance(ws,dict) or ws.get('direction') not in ('to server','from server') or ws.get('opcode') not in ('text','binary'):raise ImportProblem('Invalid WebSocket message evidence.')
+            metadata={k:ws[k] for k in ('connection_id','direction','opcode','bytes','message_sha256','encoding','original_message_sha256','forwarded','limit') if k in ws}
+            metadata['body']='[binary message withheld]' if ws['opcode']=='binary' else message_excerpt({'body':ws.get('body',''),'headers':[]},mode)['body']
+            b.obs(resource,'WebSocket message',metadata,loc,basis=basis,time=when)
+        if event.get('out_of_band'):b.obs(resource,'out-of-band interaction',event['out_of_band'],loc,basis='active test',time=when)
         if event.get('authentication'):
             auth=event['authentication']
             if not isinstance(auth,dict):raise ImportProblem('Authentication evidence must be an object.')
             b.obs(resource,'web authentication context',{k:auth[k] for k in ('mode','session_verified','purpose','generation') if k in auth},loc,basis='active test',time=when)
-        if event.get('connected_address'):b.obs(resource,'HTTP transport observation',{'connected_address':event['connected_address'],'elapsed_ms':event.get('elapsed_ms'),'upstream_tls':event.get('upstream_tls'),'peer_certificate_sha256':event.get('peer_certificate_sha256'),'source_capture_id':event.get('source_capture_id',event.get('id')),'limit':'One scoped transport observation, not identity proof. HTTPS upstream hostname/CA checks remain enabled. Check derivations share source capture IDs and are not additional requests.'},loc,basis=basis,time=when)
+        if event.get('connected_address'):b.obs(resource,'HTTP transport observation',{'connected_address':event['connected_address'],'elapsed_ms':event.get('elapsed_ms'),'upstream_tls':event.get('upstream_tls'),'http_version':event.get('http_version'),'peer_validation':event.get('peer_validation'),'peer_certificate_sha256':event.get('peer_certificate_sha256'),'source_capture_id':event.get('source_capture_id',event.get('id')),'limit':'One scoped transport observation, not identity proof. HTTPS upstream hostname/CA checks remain enabled. Check derivations share source capture IDs and are not additional requests.'},loc,basis=basis,time=when)
         for link in items(event.get('links',[]),'links')[:100]:
             if not isinstance(link,dict):raise ImportProblem('Invalid web link.')
             target_url=safe_url(link.get('url'))

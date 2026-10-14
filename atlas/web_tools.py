@@ -43,10 +43,13 @@ def passive_checks(event):
 
 
 class WebTools:
-    def __init__(self,store,port):self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={}
+    def __init__(self,store,port):self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={};self.sockets={};self.receivers={}
 
     def block_controls(self,scope):
         with self.lock:scope.forbidden_ports.update(p.server.server_address[1] for p in self.proxies.values() if not p.closed)
+        with self.lock:
+            for r in self.receivers.values():
+                if not r.closed:scope.forbidden_ports.update((r.http.server_address[1],r.dns.server_address[1]))
         scope.check(scope.start)
 
     def session_list(self,workspace):
@@ -82,6 +85,8 @@ class WebTools:
         return config
     def capture(self,workspace,event,source,config):
         event=copy.deepcopy(event)
+        with self.lock:receivers=[r for r in self.receivers.values() if r.workspace==workspace and not r.closed]
+        for receiver in receivers:event=receiver.scrub(event)
         for part in ('request','response'):
             if isinstance(event.get(part),dict) and len(event[part].get('body',''))>8192:
                 event[part]['body']=event[part]['body'][:8192];event[part]['excerpt_truncated']=True
@@ -109,6 +114,9 @@ class WebTools:
         if kind in ('scanner','matrix'):
             from .web_audit import validate_audit
             checks=validate_audit(scope,config)
+            if any(c.startswith('oob-') for c in checks):
+                receiver=self.receivers.get(config.get('oob_id'))
+                if not receiver or receiver.workspace!=workspace or receiver.closed:raise ImportProblem('Choose an active interaction receiver from this workspace.')
             if kind=='matrix':
                 from .web_advanced import payload_plan
                 payload_plan({'url':config.get('request_url') or config['url'],'method':config.get('method','GET'),'body':config.get('body',''),'headers':config.get('headers',[])},config)
@@ -118,7 +126,7 @@ class WebTools:
                 validated_auth=AuthSession(scope,config['auth']);auth_summary=validated_auth.summary();validated_auth.clear()
         retained={k:clean(config.get(k,'')) for k in ('vantage','namespace','parameter','parameter_location')}
         plan={**scope.summary(),**retained,'url':safe_url(config['url']),'max_requests':limit,'max_seconds':seconds,'delay_ms':delay,'max_depth':depth,'path_count':len(paths),'payload_count':len(payloads),'capture_mode':'redacted' if config.get('retain_body') else 'metadata'}
-        if kind in ('scanner','matrix'):plan.update(checks=checks,audit_crawl=config.get('audit_crawl') is True,explicit_audit_requests=len(config.get('audit_requests',[])),authentication=auth_summary if config.get('auth') else {'mode':'unauthenticated'})
+        if kind in ('scanner','matrix'):plan.update(checks=checks,http_version=scope.protocol,audit_crawl=config.get('audit_crawl') is True,explicit_audit_requests=len(config.get('audit_requests',[])),authentication=auth_summary if config.get('auth') else {'mode':'unauthenticated'},oob_receiver_id=config.get('oob_id'))
         if kind=='matrix':plan.update(attack_mode=config.get('attack_mode','sniper'),positions=[{'name':p['name'],'location':p['location'],'payload_count':len(p['payloads'])} for p in config['positions']],processor=config.get('processor','none'))
         with self.lock:
             if sum(not j['stop'].is_set() and j['thread'].is_alive() for j in self.jobs.values())>=2:raise ImportProblem('At most two active web jobs are supported.')
@@ -219,3 +227,5 @@ class WebTools:
         for job in list(self.jobs.values()):job['thread'].join(timeout=6)
         for row in self.sessions.values():row['config'].clear()
         self.sessions.clear();self.volatile.clear()
+        for session in list(self.sockets.values()):session.close()
+        for receiver in list(self.receivers.values()):receiver.close()

@@ -1,8 +1,8 @@
-# Getting started with Assessment Atlas 0.2.0
+# Getting started with Assessment Atlas 0.4.0
 
 ## Open the application
 
-Extract the package into a folder you control. On Windows, double-click `Start.cmd`. Python 3.12 or newer is required; the launcher tries the Python launcher, Python on PATH, then the existing Codex Python runtime. On Linux/macOS run `sh start.sh`. No third-party Python packages or scanners are required.
+Extract the package into a folder you control. On Windows, double-click `Start.cmd`. Python 3.12 or newer is required; the launcher tries the Python launcher, Python on PATH, then the existing Codex Python runtime. On Linux/macOS run `sh start.sh`. Core import and HTTP/1.1 need no third-party Python packages. Native TLS/browser and HTTP/2/3/WebSocket features have optional dependencies described in [Setup](docs/web-tools.md). No external scanner is required.
 
 The app opens at http://127.0.0.1:8765. Keep its terminal running. Ctrl+C closes it; restart to return to saved workspaces. If the port is occupied, run `python -m atlas.server --port 8766`. Only loopback is supported. Do not expose this server on a network.
 
@@ -27,7 +27,7 @@ On Windows the default database is `%LOCALAPPDATA%\AssessmentAtlas\atlas.sqlite3
 
 Keep original input files outside the repository in your controlled evidence store. Atlas records the SHA-256 of imported UTF-8 bytes and their original filename reference, plus sanitized normalized excerpts; it does not retain raw source bytes. Selected long strings are capped at 12,000 characters. Secret scrubbing is best effort.
 
-Version 0.2.0 keeps database schema 1 and does not rewrite historical observations. Nmap forced `up`/`user-set` is now unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under adapter revision 2 creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
+Versions 0.2.0 through 0.4.0 use database schema 2 and do not rewrite historical observations. Opening schema 1 creates an exact backup before the upgrade. The web adapter is now revision 4; other adapters remain revision 2. Nmap forced `up`/`user-set` is now unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under adapter revision 2 creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
 
 Stop the application before copying the database for backup. Restore to an empty data directory with the same application/schema version; preserve the prior database separately. Results exports are reports, not restorable workspace backups. Newer database schema versions are rejected rather than silently rewritten.
 

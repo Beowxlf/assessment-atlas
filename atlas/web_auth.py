@@ -180,7 +180,7 @@ class AuthSession:
     def scrub(self,event):
         pattern=re.compile('|'.join(re.escape(s) for s in sorted(self.secrets,key=len,reverse=True) if s)) if self.secrets else None
         def scrub(value,key=''):
-            if key.endswith('sha256') or key in ('id','source_capture_id','baseline_event_id','control_event_ids','run_id','captured_at'):return value
+            if key.endswith('sha256') or key in ('id','source_capture_id','baseline_event_id','control_event_ids','run_id','captured_at','method','status','direction','opcode','encoding','mode','purpose','http_version','upstream_tls','generation','confidence','severity','type','name'):return value
             if isinstance(value,str):
                 if key in ('url','redirect_url'):
                     try:

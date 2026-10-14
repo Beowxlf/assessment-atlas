@@ -334,7 +334,7 @@ def html_report(w):
     body = table("Inventory", w["nodes"], ["id", "label", "kind", "addresses"])
     body += table("Findings (source assertions)", w["findings"], ["subject", "title", "severity", "validation", "status", "description", "import_id", "location"])
     body += table("Assessment activity", w["records"], ["kind", "title", "status", "subject", "details", "evidence_refs", "at"])
-    body += table("Native web runs and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','skipped','plan','errors','reason','import_ids'])
+    body += table("Native web runs and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','message_count','websocket_messages','interactions','findings','oob_interactions','oob_import_ids','skipped','plan','errors','reason','import_ids'])
     body += table("Evidence and typed relationships", w["observations"], ["id", "subject", "target", "kind", "status", "basis", "value", "collected_at", "vantage", "import_id", "location"])
     body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "intake_mode", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])
     body += table("Divergent observations", w["conflicts"], ["subject", "kind", "observations", "reason"])

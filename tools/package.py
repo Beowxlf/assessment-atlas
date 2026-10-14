@@ -31,9 +31,9 @@ def main():
         entries={item.filename:hashlib.sha256(archive.read(item)).hexdigest() for item in archive.infolist() if not item.is_dir()}
         if any(name.endswith((".sqlite3",".pcap",".pem",".key")) or name.startswith(("work/","evidence/","data/",".git/")) for name in entries):
             raise SystemExit("Unexpected sensitive/intermediate file in tracked archive; preserve output for inspection.")
-        manifest={"product":"Assessment Atlas","version":"0.3.0","source_revision":revision,
+        manifest={"product":"Assessment Atlas","version":"0.4.0","source_revision":revision,
                   "repository":"https://github.com/Beowxlf/assessment-atlas","built_at":dt.datetime.now(dt.timezone.utc).isoformat(),
-                  "requires":"Python 3.12+; TLS interception: cryptography; isolated browser: Node.js/Playwright/Microsoft Edge; no runtime bundled", "files_sha256":entries,
+                  "requires":"Python 3.12+; HTTP/2: h2; HTTP/3: aioquic; WebSockets: wsproto (requirements-protocols.txt); TLS interception: cryptography; isolated browser: Node.js/Playwright/Microsoft Edge; no runtime bundled", "files_sha256":entries,
                   "evidence":"All bundled fixtures are synthetic; no live engagement data or credentials included.",
                   "license":"Owner decision pending; no open-source license selected."}
         archive.writestr("PACKAGE_MANIFEST.json",json.dumps(manifest,indent=2))

@@ -92,7 +92,8 @@ class Handler(BaseHTTPRequestHandler):
                     proxy=next((p for p in proxies if p.run['id']==query.get('id',[''])[0]),None)
                     if not proxy:raise ImportProblem('Proxy not found in this workspace.')
                     return self.respond(proxy.certificates.pem,mime='application/x-pem-file',attachment='atlas-isolated-proxy-ca.pem')
-                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace)})
+                from .web_protocols import available
+                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace),'sockets':[s.status() for s in self.server.web.sockets.values() if s.workspace==workspace],'receivers':[r.status() for r in self.server.web.receivers.values() if r.workspace==workspace],'protocols':available()})
             if path == "/api/session":
                 return self.respond({"nonce": self.server.nonce, "version": __version__, "storage": str(self.server.store.path), "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
             if path == "/api/workspaces":
@@ -139,6 +140,28 @@ class Handler(BaseHTTPRequestHandler):
                 if path=='/api/web/stop':return self.respond(tools.stop(workspace,data.get('id')))
                 if path=='/api/web/request':return self.respond(tools.send(workspace,config))
                 if path=='/api/web/compare':return self.respond(tools.compare(workspace,data.get('left'),data.get('right')))
+                if path=='/api/web/ws/start':
+                    from .web_socket import WebSocketSession
+                    if sum(not s.closed for s in tools.sockets.values())>=4:raise ImportProblem('At most four live WebSocket sessions.')
+                    session=WebSocketSession(tools,workspace,config);tools.sockets[session.run['id']]=session;return self.respond(session.status())
+                if path in ('/api/web/ws/send','/api/web/ws/stop','/api/web/ws/finding'):
+                    session=tools.sockets.get(data.get('id'))
+                    if not session or session.workspace!=workspace:raise ImportProblem('WebSocket not found in this workspace.')
+                    if path.endswith('/send'):return self.respond(session.send(data.get('message'),data.get('binary') is True))
+                    if path.endswith('/finding'):return self.respond(session.finding(data.get('message_id'),data.get('title'),data.get('severity'),data.get('detail')))
+                    session.close();return self.respond(session.status())
+                if path=='/api/web/oob/start':
+                    from .web_oob import OOBReceiver
+                    if any(not r.closed for r in tools.receivers.values()):raise ImportProblem('Stop the current interaction receiver first.')
+                    receiver=OOBReceiver(tools,workspace,config);tools.receivers[receiver.run['id']]=receiver;return self.respond(receiver.status())
+                if path in ('/api/web/oob/issue','/api/web/oob/stop'):
+                    receiver=tools.receivers.get(data.get('id'))
+                    if not receiver or receiver.workspace!=workspace:raise ImportProblem('Interaction receiver not found in this workspace.')
+                    if path.endswith('/issue'):
+                        from .web_transport import Scope
+                        scope=Scope(config,tools.port);tools.block_controls(scope);target=config.get('request_url') or config.get('url');scope.check(target)
+                        return self.respond(receiver.allocate(target,str(data.get('parameter',''))[:200]))
+                    receiver.close();return self.respond(receiver.status())
                 if path=='/api/web/utility':
                     from .web_advanced import transform,token_measurements
                     if data.get('operation')=='tokens':return self.respond(token_measurements(data.get('samples')))
@@ -180,6 +203,9 @@ class Handler(BaseHTTPRequestHandler):
                     elif path=='/api/web/proxy/intercept-response':
                         if not isinstance(data.get('enabled'),bool):raise ImportProblem('Interception setting must be boolean.')
                         proxy.intercept_response=data['enabled']
+                    elif path=='/api/web/proxy/intercept-websocket':
+                        if not isinstance(data.get('enabled'),bool):raise ImportProblem('Interception setting must be boolean.')
+                        proxy.ws_intercept=data['enabled']
                     elif path=='/api/web/proxy/decide':proxy.decide(data.get('pending_id'),data.get('action'),data.get('changes',{}))
                     else:raise ImportProblem('Unknown proxy action.')
                     return self.respond(proxy.status())
@@ -187,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/create":
                 return self.respond(Store.view(store.create(data.get("name"), data.get("scope", ""))))
             if path == "/api/delete":
-                if any(j['workspace']==workspace and j['thread'].is_alive() for j in self.server.web.jobs.values()) or any(p.workspace==workspace and not p.closed for p in self.server.web.proxies.values()):raise ImportProblem('Stop active web runs, browsers and proxies before deleting this workspace.')
+                if any(j['workspace']==workspace and j['thread'].is_alive() for j in self.server.web.jobs.values()) or any(p.workspace==workspace and not p.closed for p in self.server.web.proxies.values()) or any(s.workspace==workspace and not s.closed for s in self.server.web.sockets.values()) or any(r.workspace==workspace and not r.closed for r in self.server.web.receivers.values()):raise ImportProblem('Stop active web runs, browsers, WebSockets and interaction receivers before deleting this workspace.')
                 store.delete(workspace, data.get("confirmation"))
                 for row in self.server.web.session_list(workspace):self.server.web.forget_session(workspace,row['id'])
                 return self.respond({"deleted": True})

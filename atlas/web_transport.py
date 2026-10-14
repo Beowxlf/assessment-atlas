@@ -64,6 +64,8 @@ class Scope:
                     if ip.is_link_local or ip.is_multicast or ip.is_unspecified or (ip.is_loopback and port==atlas_port):raise ImportProblem('Metadata/link-local/multicast/unspecified and Atlas control targets are excluded.')
                 self.pins[allowed]=addresses
         ca=config.get('ca_pem','')
+        self.protocol=config.get('http_version','http1');self.ca_pem=ca
+        if self.protocol not in ('http1','http2','http3'):raise ImportProblem('Choose HTTP/1.1, HTTP/2 or HTTP/3 explicitly.')
         if not isinstance(ca,str) or len(ca)>32768 or ('PRIVATE KEY' in ca):raise ImportProblem('Only a bounded public CA certificate is accepted.')
         try:self.tls=ssl.create_default_context(cadata=ca or None)
         except (ssl.SSLError,ValueError):raise ImportProblem('Public CA certificate could not be loaded.') from None
@@ -78,7 +80,7 @@ class Scope:
         return origin
 
     def summary(self):
-        return {'origins':self.origins,'excluded_paths':self.excluded,'resolved_addresses':self.pins,'upstream_tls':'hostname and CA validated','custom_ca_sha256':self.ca_sha256}
+        return {'origins':self.origins,'excluded_paths':self.excluded,'resolved_addresses':self.pins,'upstream_tls':'hostname and CA validated','http_version':self.protocol,'custom_ca_sha256':self.ca_sha256}
 
 
 def request_headers(value):
@@ -133,6 +135,19 @@ def fetch(scope,url,method='GET',headers=None,body='',timeout=5,wire=False):
     started=time.monotonic();event={'id':uuid.uuid4().hex,'url':url,'captured_at':now(),'request':{'method':method,'url':url,'headers':[{'name':k,'value':v} for k,v in outbound.items()],'body':body,'bytes':len(body.encode()),'body_sha256':hashlib.sha256(body.encode()).hexdigest()},'parameters':[],'links':[]}
     conn=PinnedConnection(host,port,scope.pins[origin][0],scope.tls if origin.startswith('https:') else None,timeout)
     try:
+        if scope.protocol!='http1':
+            from .web_protocols import exchange_h2,exchange_h3
+            status,head,raw,truncated,transport=(exchange_h2 if scope.protocol=='http2' else exchange_h3)(scope,url,method,outbound,body.encode(),timeout,2*1024*1024 if wire else MAX_BODY)
+            event.update(transport);event['response']={'status':status,'headers':head,'body':raw.decode('utf-8',errors='replace'),'bytes':len(raw),'body_sha256':hashlib.sha256(raw).hexdigest(),'truncated':truncated,'digest_scope':'captured bytes only' if truncated else 'complete received body'};event['elapsed_ms']=round((time.monotonic()-started)*1000,2)
+            parser=PageParser(url)
+            if any(h['name'].lower()=='content-type' and 'text/html' in h['value'].lower() for h in head):parser.feed(event['response']['body']);event['links']=parser.links;event['parameters']=parser.parameters
+            location=next((h['value'] for h in head if h['name'].lower()=='location'),None)
+            if location and status in (301,302,303,307,308):
+                redirected=urljoin(url,location)
+                try:web_url(redirected);event['links'].append({'url':redirected,'kind':'redirect'});scope.check(redirected);event['redirect_in_scope']=True
+                except ImportProblem:event['redirect_in_scope']=False
+                event['redirect_url']=redirected
+            return (event,raw) if wire else event
         conn.request(method,path+('?' + query if query else ''),body.encode('utf-8') if body else None,outbound)
         event['upstream_tls']=conn.sock.version() if isinstance(conn.sock,ssl.SSLSocket) else None
         if isinstance(conn.sock,ssl.SSLSocket):event['peer_certificate_sha256']=hashlib.sha256(conn.sock.getpeercert(binary_form=True)).hexdigest()
@@ -141,6 +156,7 @@ def fetch(scope,url,method='GET',headers=None,body='',timeout=5,wire=False):
         event['response']={'status':response.status,'headers':[{'name':k,'value':v} for k,v in response.getheaders()[:100]],'body':text,'bytes':len(raw),'body_sha256':hashlib.sha256(raw).hexdigest(),'truncated':truncated,'digest_scope':'captured bytes only' if truncated else 'complete received body'}
         event['elapsed_ms']=round((time.monotonic()-started)*1000,2)
         event['connected_address']=scope.pins[origin][0]
+        event['http_version']='HTTP/1.1'
         if 'text/html' in response.getheader('Content-Type','').lower():
             parser=PageParser(url)
             try:parser.feed(text)
@@ -154,9 +170,13 @@ def fetch(scope,url,method='GET',headers=None,body='',timeout=5,wire=False):
             except ImportProblem:event['redirect_in_scope']=False
             event['redirect_url']=redirected
         return (event,raw) if wire else event
-    except (OSError,http.client.HTTPException) as exc:
+    except (OSError,http.client.HTTPException,ImportProblem) as exc:
         # Never leak header values, certificate paths or exception-injected content.
-        event['error']='TLS validation failed' if isinstance(exc,ssl.SSLError) else 'Connection/HTTP read failed or timed out'
+        event['error']='TLS validation failed' if isinstance(exc,ssl.SSLError) else str(exc) if isinstance(exc,ImportProblem) else 'Connection/HTTP read failed or timed out'
         event['elapsed_ms']=round((time.monotonic()-started)*1000,2)
+        return (event,b'') if wire else event
+    except Exception:
+        if scope.protocol=='http1':raise
+        event['error']='Malformed or unsupported negotiated protocol response; completed evidence retained';event['elapsed_ms']=round((time.monotonic()-started)*1000,2)
         return (event,b'') if wire else event
     finally:conn.close()

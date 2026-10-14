@@ -14,7 +14,7 @@ from .web_auth import AuthSession
 from .web_evidence import safe_url,web_url
 from .web_transport import fetch,request_headers
 
-CHECKS=('passive','sql-error','template-expression','html-reflection','cors-origin','authorization')
+CHECKS=('passive','sql-error','template-expression','html-reflection','cors-origin','authorization','sql-boolean','nosql-error','ldap-error','xpath-error','command-arithmetic','file-canary','open-redirect','xml-entity','csrf-canary','cache-canary','oob-http','oob-xml')
 SQL_ERROR=re.compile(r'SQL syntax.*MySQL|Unclosed quotation mark|ORA-\d{5}|SQLSTATE\[|sqlite3?\.OperationalError|PostgreSQL.*ERROR',re.I)
 
 
@@ -49,6 +49,8 @@ def validate_audit(scope,config):
         if ('header' in conditions)!=('header_equals' in conditions):raise ImportProblem('Header predicate needs a name and exact value.')
     excluded=config.get('exclude_parameters',[])
     if not isinstance(excluded,list) or len(excluded)>100 or any(not isinstance(v,str) or len(v)>200 for v in excluded):raise ImportProblem('Excluded parameter names must be a bounded list.')
+    from .web_check_families import validate
+    validate(scope,config)
     return checks
 
 
@@ -85,6 +87,7 @@ def run_scan(tools,workspace,run,scope,config,stop):
     from .web_tools import passive_checks
     plan=run['plan'];started=time.monotonic();count=0;imports=[];errors=[];skipped=0;audited=0;findings=0;reported=set();auth=None;last_guard=0;refreshes=0
     state='completed';reason='Audit queue exhausted';checks=config.get('checks',['passive']);excluded=config.get('exclude_parameters',[])
+    receiver=tools.receivers.get(config.get('oob_id'))
     if not isinstance(excluded,list) or len(excluded)>100 or any(not isinstance(v,str) or len(v)>200 for v in excluded):raise ImportProblem('Excluded parameter names must be a bounded list.')
     def budget():
         if stop.is_set():raise Interrupted('cancelled','Operator stopped the job; completed evidence retained')
@@ -107,7 +110,8 @@ def run_scan(tools,workspace,run,scope,config,stop):
         event['authentication']={'mode':'anonymous control' if anonymous else 'session credentials' if auth and web_url(url)[0] in auth.origins else 'unauthenticated','session_verified':bool(auth and auth.verified and not anonymous),'purpose':purpose,'generation':auth.generation if auth else 0}
         imports.append(tools.capture(workspace,auth.scrub(event) if auth else event,'web-enumeration',{**config,'retain_body':False} if purpose=='login sequence' or session_problem else config))
         if event.get('error'):errors.append(event['error'])
-        tools.store.update_web_run(workspace,run['id'],requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,findings=findings)
+        oob=receiver.summary_for(run['id']) if receiver else {'findings':0}
+        tools.store.update_web_run(workspace,run['id'],requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,findings=findings+oob['findings'])
         if session_problem:raise Interrupted('failed','Session cookie/token limits failed; completed metadata retained and auditing stopped')
         if auth and auth.verified and not anonymous and purpose=='audit' and event.get('response',{}).get('status') in (401,403):verify()
         return event
@@ -129,7 +133,10 @@ def run_scan(tools,workspace,run,scope,config,stop):
         imports.append(tools.capture(workspace,auth.scrub(indicator) if auth else indicator,'web-scanner',config));findings+=1
     def issue(name,key,detail,severity='medium',confidence='observed controlled response difference'):
         return {'name':name,'type':key,'severity':severity,'confidence':confidence,'detail':detail+' This is scanner-reported evidence, not validated exploitability; review the linked baseline and controls.'}
-    def send(row,anonymous=False,purpose='audit'):return request(row['url'],row.get('method','GET'),row.get('headers',[]),row.get('body',''),anonymous,purpose)
+    def send(row,anonymous=False,purpose='audit'):
+        # Every added check uses this gate, including its neutral/repeat requests.
+        if auth and not anonymous and purpose in ('audit','canary cleanup') and count-last_guard>=5:verify()
+        return request(row['url'],row.get('method','GET'),row.get('headers',[]),row.get('body',''),anonymous,purpose)
     try:
         tools.store.update_web_run(workspace,run['id'],state='running')
         if config.get('auth'):
@@ -176,6 +183,8 @@ def run_scan(tools,workspace,run,scope,config,stop):
                 probe=copy.deepcopy(row);probe['headers']=[{'name':k,'value':v} for k,v in request_headers(row.get('headers',[])).items() if k.lower()!='origin']+[{'name':'Origin','value':'https://atlas-cors.invalid'}]
                 result=send(probe);hs={h['name'].lower():h['value'] for h in result.get('response',{}).get('headers',[])}
                 if hs.get('access-control-allow-origin')=='https://atlas-cors.invalid' and hs.get('access-control-allow-credentials','').lower()=='true':report(result,issue('Arbitrary Origin reflected with credentials declaration','atlas-cors-origin','The supplied reserved-domain Origin was reflected with Allow-Credentials. Browser readability, SameSite behavior and sensitive-data impact remain unverified.'),baseline)
+            from .web_check_families import audit
+            audit(row,baseline,config,send,report,issue,receiver,run['id'])
             for location,name in insertion_points(row,excluded):
                 for check in checks:
                     if check not in ('sql-error','template-expression','html-reflection'):continue
@@ -206,4 +215,5 @@ def run_scan(tools,workspace,run,scope,config,stop):
     except Exception:state='failed';reason='Audit processing failed; completed evidence retained'
     finally:
         if auth:auth.clear()
-        tools.store.update_web_run(workspace,run['id'],state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,findings=findings,session_refreshes=refreshes,ended_at=now(),reason=reason)
+        oob=receiver.summary_for(run['id']) if receiver else {'findings':0}
+        tools.store.update_web_run(workspace,run['id'],state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,findings=findings+oob['findings'],session_refreshes=refreshes,ended_at=now(),reason=reason)

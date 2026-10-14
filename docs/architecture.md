@@ -1,6 +1,6 @@
 # Architecture principles and evidence model
 
-**Status:** product-direction baseline and logical model, October 12, 2026. Version 0.3.0 implements a bounded subset in Python, local SQLite and a browser UI; [ADR 0002](adr/0002-local-initial-product.md) records actual choices, formats, storage and remaining limits. Some richer logical entities/lifecycle contracts below remain future design requirements. [ADR 0001](adr/0001-evidence-first-imports.md) records the established direction.
+**Status:** product-direction baseline and logical model, October 12, 2026. Version 0.4.0 implements a bounded subset in Python, local SQLite and a browser UI; [ADR 0002](adr/0002-local-initial-product.md) records actual choices, formats, storage and remaining limits. Some richer logical entities/lifecycle contracts below remain future design requirements. [ADR 0001](adr/0001-evidence-first-imports.md) records the established direction.
 
 ## Evidence flow and trust boundaries
 

@@ -282,6 +282,40 @@ class APITests(unittest.TestCase):
     def test_headers_and_invalid_input(self):
         _,headers,_=self.request("GET","/");self.assertIn("frame-ancestors 'none'",headers["content-security-policy"]);self.assertIn("HttpOnly",headers["set-cookie"])
         status,_,_=self.request("POST","/api/preview",{"content":"<broken","source":"nmap"},cookie=True,auth=True);self.assertEqual(status,400)
+    def test_oob_workspace_scope_authority_and_bind_cleanup(self):
+        from test_protocols import port
+        w=self.store.create('Callback API synthetic','Owned local receiver');other=self.store.create('Other callback workspace','No cross-workspace control')
+        config={'url':'http://127.0.0.1:32101/canary','authorized':True,'oob_port':port(),'dns_port':port(),'max_seconds':30}
+        payload={'workspace':w['id'],'config':config}
+        self.assertEqual(self.request('POST','/api/web/oob/start',payload,cookie=True)[0],403)
+        self.assertEqual(self.request('POST','/api/web/oob/start',{**payload,'config':{**config,'bind_address':'192.0.2.1'}},cookie=True,auth=True)[0],400)
+        self.assertEqual(self.request('POST','/api/web/oob/start',{**payload,'config':{**config,'callback_origin':'http://127.0.0.1:12345/not-an-origin'}},cookie=True,auth=True)[0],400)
+        code,_,receiver=self.request('POST','/api/web/oob/start',payload,cookie=True,auth=True);self.assertEqual(code,200)
+        foreign={'workspace':other['id'],'id':receiver['id'],'config':config}
+        self.assertEqual(self.request('POST','/api/web/oob/issue',foreign,cookie=True,auth=True)[0],400);self.assertEqual(self.request('POST','/api/web/oob/stop',foreign,cookie=True,auth=True)[0],400)
+        self.assertEqual(self.request('GET','/api/web/status?workspace='+other['id'],cookie=True)[2]['receivers'],[])
+        own={'workspace':w['id'],'id':receiver['id'],'config':config}
+        self.assertEqual(self.request('POST','/api/web/oob/issue',{**own,'config':{**config,'request_url':'http://127.0.0.1:32102/outside'}},cookie=True,auth=True)[0],400)
+        self.assertEqual(self.request('POST','/api/web/request',{**payload,'config':{**config,'url':receiver['callback_origin']+'/'}},cookie=True,auth=True)[0],400)
+        self.assertEqual(self.request('POST','/api/delete',{'workspace':w['id'],'confirmation':w['name']},cookie=True,auth=True)[0],400)
+        self.assertEqual(self.request('POST','/api/web/oob/issue',own,cookie=True,auth=True)[0],200);self.assertEqual(self.request('POST','/api/web/oob/stop',own,cookie=True,auth=True)[0],200)
+    def test_websocket_api_origin_workspace_and_message_boundaries(self):
+        from atlas.web_protocols import available
+        if not available()['websocket']:self.skipTest('Install requirements-protocols.txt for the WebSocket fixture')
+        from protocol_fixtures import WebSocketFixture
+        fixture=WebSocketFixture();w=self.store.create('WS API synthetic','Owned echo');other=self.store.create('Other WS workspace','No cross-workspace control')
+        config={'url':f'http://127.0.0.1:{fixture.port}/','ws_url':f'ws://127.0.0.1:{fixture.port}/socket','authorized':True,'max_seconds':20,'max_requests':10};payload={'workspace':w['id'],'config':config}
+        try:
+            self.assertEqual(self.request('POST','/api/web/ws/start',payload,cookie=True,auth=True,extra={'Origin':'https://evil.test'})[0],403);self.assertEqual(fixture.seen,[])
+            code,_,channel=self.request('POST','/api/web/ws/start',payload,cookie=True,auth=True);self.assertEqual(code,200)
+            foreign={'workspace':other['id'],'id':channel['id'],'message':'blocked'}
+            for route in ('send','finding','stop'):self.assertEqual(self.request('POST','/api/web/ws/'+route,foreign,cookie=True,auth=True)[0],400)
+            self.assertEqual(self.request('GET','/api/web/status?workspace='+other['id'],cookie=True)[2]['sockets'],[])
+            own={'workspace':w['id'],'id':channel['id'],'message':'owned echo'}
+            self.assertEqual(self.request('POST','/api/web/ws/send',{**own,'message':'invalid!','binary':True},cookie=True,auth=True)[0],400)
+            self.assertEqual(self.request('POST','/api/web/ws/send',own,cookie=True,auth=True)[0],200)
+            self.assertEqual(self.request('POST','/api/web/ws/stop',own,cookie=True,auth=True)[0],200)
+        finally:fixture.close()
     def test_native_request_auth_scope_and_workspace_boundaries(self):
         from test_web_tools import fixture_server
         target=fixture_server();url=f'http://127.0.0.1:{target.server_address[1]}/'

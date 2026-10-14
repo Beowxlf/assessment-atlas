@@ -109,6 +109,14 @@ class AdvancedTests(unittest.TestCase):
         self.auth['steps'][1]['body']=self.auth['steps'][1]['body'].replace(PASSWORD,'wrong-password')
         result=self.scan();self.assertEqual(result['state'],'failed');self.assertEqual(result['audited_endpoints'],0);self.assertEqual(self.store.get(self.workspace['id'])['findings'],[])
         result=self.scan(auth={**self.auth,'check_url':self.url+'/public-guard'});self.assertEqual(result['state'],'failed');self.assertIn('anonymously',result['reason'])
+    def test_broader_check_controls_repeat_session_guard_within_five_requests(self):
+        result=self.scan(url=self.url+'/private/fixed?a=base&b=base&c=base',checks=['sql-boolean','nosql-error','ldap-error','xpath-error'],active_audit=True)
+        self.assertEqual(result['state'],'completed');self.assertEqual(result['findings'],0)
+        since_guard=0;verified=False;guards=0
+        for row in self.target.seen:
+            if row['path']=='/guard' and COOKIE in row['cookie']:since_guard=0;verified=True;guards+=1
+            elif verified:since_guard+=1;self.assertLessEqual(since_guard,5)
+        self.assertGreaterEqual(guards,4);self.assertFalse(COOKIE in json.dumps(self.store.get(self.workspace['id'])))
     def test_session_loss_stops_without_falling_back_to_anonymous(self):
         session={'check_url':self.url+'/guard','success_text':MARKER,'headers':'Cookie: session='+COOKIE}
         result=self.scan(auth=session,url=self.url+'/private/expire',paths=['/private/sql?q=base'],checks=['sql-error'],active_audit=True)
@@ -191,7 +199,7 @@ class AdvancedTests(unittest.TestCase):
         content=json.dumps({'format':'atlas-web/1','source':'web-proxy','events':[{'id':'revision-fixture','url':self.url+'/guard','response':{'status':200,'headers':[],'body':'ordinary'},'authentication':{'mode':'source-asserted session','session_verified':True}}]})
         legacy=parse(content,'web-proxy');legacy.adapter_version='2';legacy.observations=[o for o in legacy.observations if o['kind']!='web authentication context']
         with patch('atlas.store.parse',return_value=legacy):old=self.store.import_file(self.workspace['id'],content,'fixture.json','web-proxy',{})
-        historical=old['workspace']['observations'];new=self.store.import_file(self.workspace['id'],content,'fixture.json','web-proxy',{});self.assertFalse(new['duplicate']);self.assertEqual([i['adapter_version'] for i in new['workspace']['imports']],['2','3']);self.assertTrue(all(o in new['workspace']['observations'] for o in historical));self.assertTrue(any(o['kind']=='web authentication context' for o in new['workspace']['observations']))
+        historical=old['workspace']['observations'];new=self.store.import_file(self.workspace['id'],content,'fixture.json','web-proxy',{});self.assertFalse(new['duplicate']);self.assertEqual([i['adapter_version'] for i in new['workspace']['imports']],['2','4']);self.assertTrue(all(o in new['workspace']['observations'] for o in historical));self.assertTrue(any(o['kind']=='web authentication context' for o in new['workspace']['observations']))
     def test_ipv4_mapped_control_and_metadata_targets_are_excluded(self):
         for address,port in (('::ffff:169.254.169.254',80),('::ffff:127.0.0.1',8765)):
             with patch('socket.getaddrinfo',return_value=[(10,1,6,'',(address,port,0,0))]),self.assertRaises(ImportProblem):Scope({**self.config,'url':f'http://[{address}]:{port}/'},8765)

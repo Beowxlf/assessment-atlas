@@ -99,6 +99,8 @@ function reviewForm(record,collection){const form=el('form','','review-form');co
 function findingControls(f){
   const observations=state.observations.filter(o=>o.import_id===f.import_id);const tests=observations.filter(o=>o.kind==='selected parameter test');
   const ids=new Set(tests.flatMap(o=>[o.value.baseline_event_id,...(o.value.control_event_ids||[])]).filter(Boolean));
+  const correlations=new Set(observations.filter(o=>o.kind==='out-of-band interaction').map(o=>o.value.correlation_id));
+  for(const o of state.observations.filter(o=>o.kind==='out-of-band interaction'&&correlations.has(o.value.correlation_id))){if(o.value.probe_capture_id)ids.add(o.value.probe_capture_id);if(o.value.baseline_event_id)ids.add(o.value.baseline_event_id);ids.add(state.imports.find(s=>s.id===o.import_id)?.event_id);}
   const imports=state.imports.filter(s=>s.id===f.import_id||ids.has(s.event_id));const sourceIds=new Set(imports.map(s=>s.id));
   details(f.title+' · test and controls',[{finding:f,source_captures:imports,observations:state.observations.filter(o=>sourceIds.has(o.import_id)),limit:'Source assertions remain scanner-reported. Authentication context is a checked session, not proof that every endpoint requires login.'}]);
 }

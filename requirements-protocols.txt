@@ -1,0 +1,4 @@
+# Optional protocol engines; tested Windows/Python 3.12 versions, not vendored.
+h2==4.4.1
+aioquic==1.6.1
+wsproto==1.3.2

@@ -42,7 +42,7 @@ input.on('line',async line=>{
     context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
     let blocked=0;
     await context.route('**/*',route=>{if(allowed(route.request().url(),config))return route.continue();console.log(JSON.stringify({state:'blocked',count:++blocked}));return route.abort('blockedbyclient');});
-    if(context.routeWebSocket)await context.routeWebSocket('**/*',ws=>ws.close());
+    if(context.routeWebSocket)await context.routeWebSocket('**/*',ws=>{const url=ws.url().replace(/^wss:/,'https:').replace(/^ws:/,'http:');if(allowed(url,config))ws.connectToServer();else{console.log(JSON.stringify({state:'blocked',count:++blocked}));ws.close();}});
     const page=await context.newPage();
     await page.goto(config.url,{waitUntil:'domcontentloaded',timeout:30000});
     console.log(JSON.stringify({state:'ready'}));

@@ -1,4 +1,4 @@
-"""Original authenticated loopback HTTP/HTTPS interception proxy, HTTP/1.1 only."""
+"""Authenticated loopback HTTP/1.1 browser hop with scoped upstream HTTP/WS engines."""
 import base64
 import datetime as dt
 import hashlib
@@ -73,6 +73,7 @@ class Proxy:
         self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
         self.limit=bounded_int(config,'max_requests',100,1,200);self.duration=bounded_int(config,'max_seconds',300,1,300);port=bounded_int(config,'proxy_port',8877,1024,65535)
         self.intercept_response=config.get('intercept_response') is True
+        self.ws_intercept=False;self.ws_connections=[];self.ws_count=0
         if port==tools.port:raise ImportProblem('Proxy port must differ from Atlas.')
         folder=tools.store.path.parent/'proxy-tls-volatile';folder.mkdir(exist_ok=True)
         if __import__('os').name=='nt':
@@ -96,6 +97,7 @@ class Proxy:
     def status(self,include_token=False):
         with self.lock:
             result={'id':self.run['id'],'state':'stopped' if self.closed else 'running','port':self.server.server_address[1],'requests':self.count,'intercept':self.intercept,'intercept_response':self.intercept_response,'CA_sha256':self.certificates.fingerprint,'pending':[{'id':key,'phase':value.get('phase','request'),**value['request']} for key,value in self.pending.items() if not value['ready'].is_set()],'scope':self.scope.summary()}
+            result.update(websocket_intercept=self.ws_intercept,websocket_messages=self.ws_count,websocket_connections=len(self.ws_connections))
         if include_token:result.update(username='atlas',password=self.token,ca_pem=self.certificates.pem,ca_spki_sha256=self.certificates.spki)
         return result
 
@@ -107,6 +109,13 @@ class Proxy:
             if action not in ('forward','drop'):raise ImportProblem('Choose forward or drop.')
             request=item['request']
             if action=='forward':
+                if item.get('phase')=='websocket':
+                    body=changes.get('body',request['body']);binary=changes.get('binary',request['binary'])
+                    if not isinstance(body,str) or not isinstance(binary,bool) or len(body)>90000:raise ImportProblem('Invalid bounded WebSocket edit.')
+                    try:raw=base64.b64decode(body,validate=True) if binary else body.encode()
+                    except ValueError:raise ImportProblem('Invalid Base64 frame edit.') from None
+                    if len(raw)>65536:raise ImportProblem('WebSocket message exceeds 64 KiB.')
+                    item['edited']={**request,'body':body,'binary':binary};item['action']=action;item['ready'].set();return
                 if item.get('phase')=='response':
                     status=changes.get('status',request['status']);body=changes.get('body',request['body']);headers=changes.get('headers',request['headers'])
                     from .web_transport import request_headers
@@ -184,6 +193,10 @@ class Proxy:
             if self.closed:return
             self.closed=True
             for item in self.pending.values():item['ready'].set()
+            for client,downstream in list(self.ws_connections):
+                client.close()
+                try:downstream.shutdown(__import__('socket').SHUT_RDWR)
+                except OSError:pass
         self.server.shutdown();self.server.server_close()
         state='failed' if 'startup failed' in reason.lower() else 'partial' if self.errors or 'limit' in reason.lower() else 'stopped'
         self.tools.store.update_web_run(self.workspace,self.run['id'],state=state,ended_at=now(),reason=reason,requests=self.count,errors=self.errors[-100:],rejected_requests=self.rejected)
@@ -222,6 +235,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def exchange(self):
         if not getattr(self,'tunnel_authenticated',False) and not self.authenticated():return
         try:
+            if self.headers.get('Upgrade','').lower()=='websocket':
+                from .web_socket import relay
+                url=(self.tunnel_origin+self.path) if hasattr(self,'tunnel_origin') else self.path
+                relay(self.server.proxy,self.connection,url,[{'name':k,'value':v} for k,v in self.headers.items() if k.lower()!='proxy-authorization']);self.close_connection=True;return
             if self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length',[]))>1:raise ImportProblem('Chunked or duplicate-length requests are not supported.')
             length=int(self.headers.get('Content-Length','0'))
             if not 0<=length<=16384:raise ImportProblem('Request body exceeds 16 KiB.')

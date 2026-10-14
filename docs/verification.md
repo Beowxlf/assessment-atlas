@@ -1,6 +1,8 @@
-# Verification and delivery limits — 0.2.0
+# Verification and delivery limits — historical 0.2.0 baseline
 
-Verification date: October 12, 2026. Environment: Windows, Python 3.12.14, Edge headless via Playwright. The general regression suite and packaged examples are synthetic. A separate actual NorthGate workflow is recorded in [Live validation](live-validation.md). Package manifests identify exact revisions/file hashes; external receipts record extracted-package tests. Live raw evidence is never bundled.
+Current 0.4.0 protocol/scanner source verification: **85 Python tests passed** with the optional engines installed on Windows/Python 3.12.14. Real Edge protocol UI workflows pass with HTTP/2, HTTP/3 QUIC, WS/WSS editing/replay, scoped browser text/binary capture, actual HTTP/DNS callbacks and direct Findings/export. [Workflow and qualification](protocols-and-callbacks.md). Exact extracted-package tests, all regression browser workflows, source revision/hash and preservation results are recorded in the versioned delivery receipt.
+
+The remainder preserves earlier verification. Verification date: October 12, 2026. Environment: Windows, Python 3.12.14, Edge headless via Playwright. The general regression suite and packaged examples are synthetic. A separate actual NorthGate workflow is recorded in [Live validation](live-validation.md). Package manifests identify exact revisions/file hashes; external receipts record extracted-package tests. Live raw evidence is never bundled.
 
 ## Executed local checks
 
