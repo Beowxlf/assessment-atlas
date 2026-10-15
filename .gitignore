@@ -21,3 +21,5 @@ __pycache__/
 /data/
 /test-results/
 /dist/
+/build/
+*.egg-info/

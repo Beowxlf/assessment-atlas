@@ -14,6 +14,7 @@ import uuid
 from .importers import ImportProblem
 from .store import now
 from .web_evidence import safe_url,web_url
+from .lifecycle import TrackedRequests
 
 
 class OOBReceiver:
@@ -25,7 +26,7 @@ class OOBReceiver:
         except ValueError:raise ImportProblem('Interaction bind address must be a local numeric IPv4 address.') from None
         if ip.version!=4 or ip.is_multicast or ip.is_unspecified or ip.is_link_local:raise ImportProblem('Use an explicit local IPv4 interface; wildcard/metadata/multicast binding is not supported.')
         if not ip.is_loopback and config.get('allow_remote_listener') is not True:raise ImportProblem('Explicitly enable remote callbacks for this selected local interface.')
-        self.tools=tools;self.workspace=workspace;self.lock=threading.RLock();self.tokens={};self.interactions=[];self.totals={};self.closed=False;self.started=time.monotonic();self.count=0;self.seconds=bounded_int(config,'max_seconds',300,1,300);self.limit=bounded_int(config,'max_requests',100,1,200);self.config=copy.deepcopy(config)
+        self.tools=tools;self.workspace=workspace;self.lock=threading.RLock();self.tokens={};self.interactions=[];self.totals={};self.closed=False;self.close_complete=threading.Event();self.started=time.monotonic();self.count=0;self.seconds=bounded_int(config,'max_seconds',300,1,300);self.limit=bounded_int(config,'max_requests',100,1,200);self.config=copy.deepcopy(config)
         port=bounded_int(config,'oob_port',8879,1024,65535);dns_port=bounded_int(config,'dns_port',5353,1,65535)
         if port==tools.port or dns_port==tools.port or dns_port==port:raise ImportProblem('Interaction ports must differ from control and each other.')
         domain=config.get('dns_domain','atlas.test')
@@ -46,7 +47,8 @@ class OOBReceiver:
         self.http.owner=self;self.http.daemon_threads=True;self.dns.owner=self
         self.run=tools.store.start_web_run(workspace,'oob-listener',{'bind_address':bind,'callback_origin':self.origin,'dns_suffix':domain,'dns_port':dns_port,'max_seconds':self.seconds,'max_interactions':self.limit,'limit':'HTTP/DNS receiver only; remote reachability, DNS delegation and TLS reverse proxy are operator-configured, never auto-published.'})
         tools.store.update_web_run(workspace,self.run['id'],state='running')
-        threading.Thread(target=self.http.serve_forever,daemon=True).start();threading.Thread(target=self.dns.serve_forever,daemon=True).start();threading.Thread(target=self._deadline,daemon=True).start()
+        self.threads=[threading.Thread(target=self.http.serve_forever,daemon=True),threading.Thread(target=self.dns.serve_forever,daemon=True),threading.Thread(target=self._deadline,daemon=True)]
+        for thread in self.threads:thread.start()
     def allocate(self,url,parameter='',baseline_id=None,run_id=None):
         web_url(url)
         with self.lock:
@@ -99,10 +101,18 @@ class OOBReceiver:
         with self.lock:
             if self.closed:return
             self.closed=True;self.tokens.clear()
-        self.http.shutdown();self.http.server_close();self.dns.shutdown();self.dns.server_close();self.tools.store.update_web_run(self.workspace,self.run['id'],state='stopped',reason=reason,ended_at=now(),interactions=self.count)
+        try:
+            self.http.shutdown();self.http.server_close();self.dns.shutdown();self.dns.server_close();self.tools.store.update_web_run(self.workspace,self.run['id'],state='stopped',reason=reason,ended_at=now(),interactions=self.count)
+        finally:self.close_complete.set()
+
+    def wait_closed(self):
+        self.close_complete.wait()
+        for thread in self.threads:
+            if thread is not threading.current_thread():thread.join()
+        self.http.wait_requests();self.dns.wait_requests()
 
 
-class BoundedServer:
+class BoundedServer(TrackedRequests):
     def __init__(self,*args,**kwargs):self.slots=threading.BoundedSemaphore(8);super().__init__(*args,**kwargs)
     def process_request(self,request,address):
         if not self.slots.acquire(False):self.shutdown_request(request);return

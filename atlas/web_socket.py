@@ -149,7 +149,7 @@ class WebSocketSession:
             if self.auth:self.auth.clear()
             self.config.pop('auth',None);self.config.pop('headers',None)
             raise ImportProblem('WebSocket session/handshake failed; failure metadata saved. Check the protected session marker, scope, upstream certificate, dependency and server support.') from None
-        threading.Thread(target=self._read,daemon=True).start()
+        self.reader=threading.Thread(target=self._read,daemon=True);self.reader.start()
     def capture(self,direction,data,binary):
         with self.lock:
             if self.closed or self.count>=self.limit or time.monotonic()-self.started>=self.seconds:raise ImportProblem('WebSocket message/time limit reached.')
@@ -198,6 +198,9 @@ class WebSocketSession:
             if self.auth:self.auth.clear()
             self.config.pop('auth',None);self.config.pop('headers',None);self.messages.clear();self.saved_messages.clear()
             self.tools.store.update_web_run(self.workspace,self.run['id'],state='partial' if self.error or 'limit' in reason else 'stopped',reason=reason,ended_at=now(),message_count=self.message_count)
+
+    def wait_closed(self):
+        if hasattr(self,'reader') and self.reader is not threading.current_thread():self.reader.join()
 
 
 def relay(proxy,downstream,url,headers):

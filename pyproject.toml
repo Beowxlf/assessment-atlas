@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools==84.0.0", "wheel==0.48.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assessment-atlas"
+dynamic = ["version"]
+description = "A local, evidence-led workspace for authorized security assessments"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{name = "Brayden Thompson"}]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "atlas/static/vendor/xterm-LICENSE.txt"]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Beowxlf/assessment-atlas"
+Issues = "https://github.com/Beowxlf/assessment-atlas/issues"
+
+[project.optional-dependencies]
+desktop = ["pywebview==6.2.1"]
+desktop-qt = ["pywebview[pyside6]==6.2.1", "PySide6==6.12.0"]
+protocols = ["h2==4.4.1", "aioquic==1.6.1", "wsproto==1.3.2"]
+web = ["cryptography>=44.0.0,<51"]
+
+[project.gui-scripts]
+assessment-atlas = "atlas.desktop:main"
+
+[project.scripts]
+atlas-server = "atlas.server:main"
+atlas-desktop = "atlas.desktop:main"
+
+[tool.setuptools]
+packages = ["atlas"]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = {attr = "atlas.__version__"}
+
+[tool.setuptools.package-data]
+atlas = ["static/*", "static/vendor/*", "browser_session.cjs", "demo_fixtures/*"]

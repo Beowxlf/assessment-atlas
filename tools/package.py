@@ -38,7 +38,7 @@ def main():
                   "repository":"https://github.com/Beowxlf/assessment-atlas","built_at":dt.datetime.now(dt.timezone.utc).isoformat(),
                   "requires":"Python 3.12+; HTTP/2: h2; HTTP/3: aioquic; WebSockets: wsproto (requirements-protocols.txt); TLS interception: cryptography; isolated browser: Node.js/Playwright with Edge on Windows or sandboxed Chromium on Linux; no runtime bundled", "files_sha256":entries,
                   "evidence":"All bundled fixtures are synthetic; no live engagement data or credentials included.",
-                  "license":"Owner decision pending; no open-source license selected."}
+                  "license":"Public source; original code all rights reserved. See LICENSE and THIRD_PARTY_NOTICES.md."}
         archive.writestr("PACKAGE_MANIFEST.json",json.dumps(manifest,indent=2))
     with zipfile.ZipFile(args.output) as archive:
         if archive.testzip():raise SystemExit("Archive integrity check failed.")

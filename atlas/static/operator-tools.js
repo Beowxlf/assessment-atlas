@@ -1,6 +1,7 @@
 'use strict';
 let operatorWorkspace='',operatorTarget='',operatorInitialized=false;
 const atlasTools=[
+  {name:'App & server',group:'Application',description:'Local host execution, optional computation companion and manual application updates.',view:'appsettings',keywords:'desktop install vpn local server update companion'},
   {name:'Resumable investigations',group:'Assessment',description:'Continue a question, link tests and evidence, and hand a decision into a finding.',view:'investigations',keywords:'resume question hypothesis authenticated evidence finding next action'},
   {name:'Embedded terminal',group:'Discovery',description:'Run Linux shell commands or bounded discovery profiles and document selected evidence.',view:'console',keywords:'htb nmap vpn shell terminal command enumeration'},
   {name:'Embedded browser',group:'Testing',description:'Interact with a scoped browser on the execution host and prepare authenticated tests.',view:'console',consoleTab:'browser',keywords:'htb browser login web testing'},

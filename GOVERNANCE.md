@@ -32,3 +32,7 @@ Use [Contributing](CONTRIBUTING.md) for proposals and review evidence. Discuss b
 A documentation commit is not a product release. Before an application release, identify the exact commit, supported adapters and formats, completed roadmap gates, security limitations, compatibility/migration behavior, packaging validation, and rollback or recovery instructions. The owner approves distribution after reviewing those results. Publish only supported claims and approved synthetic examples; never bundle engagement evidence or credentials.
 
 Security findings follow [Security](SECURITY.md). Material governance changes use the same review path as substantive product changes. Update linked documents together, preserve ADR history, and record the date and rationale for changed authority or policy.
+
+## October 15, 2026 distribution update
+
+The owner explicitly requested an installable operator-host application and a public repository, selecting **public source with all rights reserved**. [LICENSE](LICENSE) records that choice; it grants no open-source reuse rights. Version 0.9.0 adds per-user desktop installation and an optional HTTPS computation companion. This current authorization supersedes earlier statements that public distribution was not authorized. It does not authorize publishing assessment data, issuing an open-source license, or accepting third-party contributions under undefined terms.

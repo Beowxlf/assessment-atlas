@@ -35,3 +35,7 @@ Older standalone tool clients remain compatible when no execution policy is sele
 The additive investigation field is `execution_context: {host_id, interface}` or absent/null for legacy records. Measured run context uses a server-derived allowlist: host identity/name/platform, interface/policy, checked time and route target/interface/source/gateway. Tokens, owner sessions, credentials and request configurations remain transient. Default exports withhold this context and interruption free text; included exports retain it deliberately. SQLite schema 2 and investigation schema 1 remain unchanged.
 
 See [ADR 0009](adr/0009-dependable-execution-context.md), [investigations](investigations.md), [authenticated scans](authenticated-scans.md) and [verification](verification.md). The exact release receipt identifies executed checks and environments.
+
+## Desktop execution — 0.9.0
+
+In the installed desktop app, the measured execution host is the operator machine. Install there and connect its VPN before reviewing the expected interface/target route. RDP does not change this boundary. The optional HTTPS companion performs selected advisory computation only, never target collection. Host identity/route snapshots from another installation remain historical and must be reviewed again. [Desktop setup](desktop.md).

@@ -1,0 +1,6 @@
+{
+  "format":"linux-ip/1", "device":"Synthetic router", "version":"iproute2 synthetic schema", "collected_at":"2026-10-12T10:00:00Z",
+  "addresses":[{"ifindex":2,"ifname":"eth0","address":"02:00:00:00:00:01","operstate":"UP","mtu":1500,"addr_info":[{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global"}]},{"ifindex":3,"ifname":"eth1","operstate":"UP","addr_info":[{"family":"inet","local":"198.51.100.1","prefixlen":24,"scope":"global"}]}],
+  "routes":[{"dst":"default","gateway":"198.51.100.254","dev":"eth1","protocol":"static"},{"dst":"192.0.2.0/24","dev":"eth0","protocol":"kernel","scope":"link","prefsrc":"192.0.2.1"}],
+  "neighbors":[{"dst":"192.0.2.20","dev":"eth0","lladdr":"02:00:00:00:00:20","state":["REACHABLE"]}]
+}

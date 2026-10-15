@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-12T10:03:00Z","url":"https://portal.example.test/status","host":"192.0.2.20","status_code":200,"title":"Synthetic service status","webserver":"SyntheticHTTP","tech":["Synthetic framework"],"content_length":1024,"failed":false}

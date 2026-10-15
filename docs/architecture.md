@@ -89,3 +89,7 @@ Exports must preserve typed edges and provenance references plus time/vantage, u
 ## Hosted operator console
 
 [ADR 0007](adr/0007-hosted-operator-console.md) adds optional fixed HTTPS operator authentication, browser-session/workspace-bound Linux PTYs and native browser actions. Protected raw operation files are separate from normalized assessment storage and exports. Selected excerpts reference existing identities and native runs where available; manually authored findings now appear in the Findings view. Schema 2 remains unchanged. See [Hosted console](hosted-console.md) for trust, vantage, deployment and qualification limits.
+
+## Operator-host desktop — 0.9.0
+
+The desktop runtime owns an ephemeral loopback listener, native interface and local collectors/SQLite on the operator host. Target traffic follows that host's reviewed routes; the optional server receives only explicitly reviewed software identities for bounded cached advisory matching. Source results remain inferred evidence, with a manual finding handoff. No workspace synchronization or remote target-execution fallback is introduced. See [ADR 0010](adr/0010-operator-host-desktop.md).

@@ -1,0 +1,15 @@
+include AGENTS.md CONTRIBUTING.md GETTING_STARTED.md GOVERNANCE.md SECURITY.md
+include README.md LICENSE THIRD_PARTY_NOTICES.md requirements-*.txt Start.cmd start.sh
+recursive-include atlas *.py *.cjs *.html *.js *.css *.txt *.json *.jsonl *.xml *.nessus
+recursive-include docs *.md *.cjs *.json *.service *.conf *.sh
+recursive-include fixtures *.md *.json *.jsonl *.xml *.nessus
+recursive-include packaging *.py *.sh *.ps1 *.svg *.md
+recursive-include tests *.py *.cjs
+recursive-include tools *.py
+global-exclude __pycache__ *.py[cod] *.sqlite3 *.sqlite3-journal *.pem *.key *.pcap *.pcapng
+prune work
+prune data
+prune evidence
+prune imports
+prune exports
+prune secrets

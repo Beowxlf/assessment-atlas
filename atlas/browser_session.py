@@ -25,8 +25,8 @@ class BrowserSession:
             self.process=subprocess.Popen([node,str(Path(__file__).parent/'browser_session.cjs')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',env=environment,creationflags=flags)
             settings={'url':config['url'],'origins':self.proxy.scope.origins,'excluded':self.proxy.scope.excluded,'port':self.proxy.server.server_address[1],'password':self.proxy.token,'ca_spki':self.proxy.certificates.spki,'headless':self.embedded or config.get('headless') is True,'embedded':self.embedded,'channel':os.environ.get('ATLAS_BROWSER_CHANNEL','msedge' if os.name=='nt' else 'chromium')}
             self.process.stdin.write(json.dumps(settings)+'\n');self.process.stdin.flush()
-            threading.Thread(target=self._watch,daemon=True).start()
-            threading.Thread(target=self._deadline,daemon=True).start()
+            self.threads=[threading.Thread(target=self._watch,daemon=True),threading.Thread(target=self._deadline,daemon=True)]
+            for thread in self.threads:thread.start()
         except OSError:
             self.proxy.close('Browser could not start');raise ImportProblem('Node/browser session could not start.') from None
 
@@ -106,3 +106,8 @@ class BrowserSession:
                 self.process.wait(timeout=5)
             except (OSError,subprocess.TimeoutExpired):self.process.kill();self.process.wait(timeout=5)
         self.proxy.close('Operator stopped isolated browser')
+
+    def wait_closed(self):
+        for thread in self.threads:
+            if thread is not threading.current_thread():thread.join()
+        self.proxy.wait_closed()

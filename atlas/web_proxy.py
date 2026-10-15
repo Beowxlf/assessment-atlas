@@ -16,6 +16,7 @@ from .importers import ImportProblem
 from .web_transport import Scope,fetch,METHODS
 from .web_tools import bounded_int
 from .store import now
+from .lifecycle import TrackedRequests
 
 
 class LocalCertificates:
@@ -53,7 +54,7 @@ class LocalCertificates:
             self.cache[hostname]=context;return context
 
 
-class ProxyServer(ThreadingHTTPServer):
+class ProxyServer(TrackedRequests,ThreadingHTTPServer):
     daemon_threads=True
     def __init__(self,address,handler):
         self.slots=threading.BoundedSemaphore(16)
@@ -70,7 +71,7 @@ class ProxyServer(ThreadingHTTPServer):
 
 class Proxy:
     def __init__(self,tools,workspace,config,review_config=None):
-        self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
+        self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.close_complete=threading.Event();self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
         proof=tools.bind_execution(workspace,self.scope,review_config or config,kind='browser' if config.get('browser_owned') else 'proxy')
         if proof:self.config={**config,'vantage':proof['host']['name']+' · '+proof['interface']}
         embedded=config.get('embedded') is True and config.get('browser_owned') is True
@@ -91,8 +92,8 @@ class Proxy:
         self.run=tools.store.start_web_run(workspace,'browser' if config.get('browser_owned') else 'proxy',{'scope':self.scope.summary(),'port':port,'max_requests':self.limit,'max_seconds':self.duration,'capture_mode':'redacted' if config.get('retain_body') else 'metadata','CA_sha256':self.certificates.fingerprint})
         if proof:tools.store.update_web_run(workspace,self.run['id'],plan={**self.run['plan'],'execution_context':proof})
         self.started=time.monotonic();tools.store.update_web_run(workspace,self.run['id'],state='running')
-        threading.Thread(target=self.server.serve_forever,daemon=True).start()
-        threading.Thread(target=self._deadline,daemon=True).start()
+        self.threads=[threading.Thread(target=self.server.serve_forever,daemon=True),threading.Thread(target=self._deadline,daemon=True)]
+        for thread in self.threads:thread.start()
 
     def _deadline(self):
         while not self.closed and time.monotonic()-self.started<self.duration:
@@ -205,10 +206,20 @@ class Proxy:
                 client.close()
                 try:downstream.shutdown(__import__('socket').SHUT_RDWR)
                 except OSError:pass
-        self.server.shutdown();self.server.server_close()
-        state='failed' if 'startup failed' in reason.lower() else 'partial' if self.errors or 'limit' in reason.lower() else 'stopped'
-        self.tools.store.update_web_run(self.workspace,self.run['id'],state=state,ended_at=now(),reason=reason,requests=self.count,errors=self.errors[-100:],rejected_requests=self.rejected)
-        self.certificates.cache.clear();self.certificates.key=None
+        try:
+            self.server.shutdown();self.server.server_close()
+            state='failed' if 'startup failed' in reason.lower() else 'partial' if self.errors or 'limit' in reason.lower() else 'stopped'
+            self.tools.store.update_web_run(self.workspace,self.run['id'],state=state,ended_at=now(),reason=reason,requests=self.count,errors=self.errors[-100:],rejected_requests=self.rejected)
+            self.certificates.cache.clear();self.certificates.key=None
+        finally:self.close_complete.set()
+
+    def wait_closed(self):
+        # Separate drain from close(): deadline/browser/request threads may
+        # initiate closure themselves and must never join one another there.
+        self.close_complete.wait()
+        for thread in self.threads:
+            if thread is not threading.current_thread():thread.join()
+        self.server.wait_requests()
 
 
 class ProxyHandler(BaseHTTPRequestHandler):

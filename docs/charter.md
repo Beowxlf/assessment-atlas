@@ -36,3 +36,7 @@ Longer-term success means the same evidence model supports the broader assessmen
 Ownership and change authority: [Governance](../GOVERNANCE.md).
 
 The owner extended scope to native Burp-style capabilities and replaced external Burp piping. All six web categories belong to the destination; initial bounded native workflows and concrete unfinished parity acceptance are recorded in [Coverage](native-web-coverage.md).
+
+## Operator-host delivery update — October 15, 2026
+
+The owner selected a standalone app on the operator VPN host, with an optional server for computation/updates, and authorized a public source repository with all rights reserved. [Desktop setup](desktop.md) and [ADR 0010](adr/0010-operator-host-desktop.md) specify the shipped boundary. Earlier hosted-first delivery remains available, but it cannot borrow a visiting browser machine's VPN.

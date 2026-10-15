@@ -32,7 +32,7 @@ class Terminal:
         if plan:
             self.route=route_to(plan['target'],plan['interface'])
             if expected_route is not None and self.route!=expected_route:raise ImportProblem('Terminal route changed after review; preview again. No operation was launched.')
-        retained_plan={'vantage':'Atlas Linux server terminal','operation':plan or 'Interactive operator shell; scope is operator controlled.','limit':'Raw PTY/input is transient. Only explicitly selected evidence is retained; shell privileges are those of the Atlas account.'}
+        retained_plan={'vantage':'Atlas execution host terminal','operation':plan or 'Interactive operator shell; scope is operator controlled.','limit':'Raw PTY/input is transient. Only explicitly selected evidence is retained; shell privileges are those of the Atlas account.'}
         if plan:retained_plan['execution_context']={'host':manager.execution.host,'interface':plan['interface'],'routes':[self.route],'checked_at':now(),'route_policy':'Source/interface requested; routes/source sampled every five seconds. No strict device-binding guarantee for every external-tool operation.'}
         self.run=manager.store.start_web_run(workspace,'terminal-operation' if plan else 'terminal-session',retained_plan)
         self.id=self.run['id'];self.cwd=manager.root/workspace/self.id;self.cwd.mkdir(parents=True,mode=0o700,exist_ok=False)
@@ -49,7 +49,8 @@ class Terminal:
             os.close(self.master);manager.store.update_web_run(workspace,self.id,state='failed',ended_at=now(),reason='Terminal executable could not start.');raise ImportProblem('Terminal executable is missing or could not start.') from None
         finally:os.close(slave)
         manager.store.update_web_run(workspace,self.id,state='running')
-        threading.Thread(target=self.read,daemon=True).start();threading.Thread(target=self.watch,daemon=True).start()
+        self.threads=[threading.Thread(target=self.read,daemon=True),threading.Thread(target=self.watch,daemon=True)]
+        for thread in self.threads:thread.start()
 
     def read(self):
         try:
@@ -81,7 +82,7 @@ class Terminal:
                 if not root.findall('host') or finished is None or finished.get('exit')!='success' or any(h.get('timedout')=='true' for h in root.findall('host')):
                     self.reason='Partial Nmap coverage: no complete target result or successful run footer. Retained output does not establish a clean verdict.'
                 source='nmap'
-            result=self.manager.store.import_file(self.workspace,content,'terminal-'+self.id+('.xml' if source=='nmap' else '.json'),source,{'vantage':'Atlas Linux server via '+self.plan['interface'],'namespace':'htb-lab','collected_at':now()},intake='host live')
+            result=self.manager.store.import_file(self.workspace,content,'terminal-'+self.id+('.xml' if source=='nmap' else '.json'),source,{'vantage':'Atlas execution host via '+self.plan['interface'],'namespace':'htb-lab','collected_at':now()},intake='host live')
             self.manager.store.update_web_run(self.workspace,self.id,import_ids=[result['import']['id']],route=self.route,artifact_sha256=hashlib.sha256(self.artifact.read_bytes()).hexdigest(),raw_reference='Protected Linux terminal output in data/terminal-evidence; not embedded in reports.')
         except (OSError,UnicodeError,ImportProblem,ValueError):
             self.reason=self.reason or 'Result intake failed or was incomplete. Original bounded output remains in the protected terminal evidence folder; no clean verdict.'
@@ -106,7 +107,7 @@ class Terminal:
         if isinstance(cursor,bool) or not isinstance(cursor,int) or cursor<0:raise ImportProblem('Invalid terminal output cursor.')
         with self.lock:
             self.last_seen=time.monotonic();start=max(self.offset,min(cursor,self.offset+len(self.buffer)));data=bytes(self.buffer[start-self.offset:start-self.offset+65536])
-            return {'id':self.id,'state':'stopped' if self.closed else 'running','data':base64.b64encode(data).decode(),'cursor':start+len(data),'truncated':cursor<self.offset,'reason':self.reason,'exit_code':self.exit_code,'profile':self.plan,'vantage':'Atlas Linux server','route':self.route,'evidence_run':self.id}
+            return {'id':self.id,'state':'stopped' if self.closed else 'running','data':base64.b64encode(data).decode(),'cursor':start+len(data),'truncated':cursor<self.offset,'reason':self.reason,'exit_code':self.exit_code,'profile':self.plan,'vantage':'Atlas execution host','route':self.route,'evidence_run':self.id}
 
     def input(self,value):
         if not isinstance(value,str) or len(value.encode())>8192 or self.closed:raise ImportProblem('Terminal input is invalid, oversized or stopped.')
@@ -142,6 +143,12 @@ class Terminal:
             with self.lock:self.closed=True
             self.stopped.set()
 
+    def wait_closed(self):
+        # Reader intake may already be saving the last artifact when stop()
+        # terminates the process. Retain storage ownership until it finishes.
+        for thread in self.threads:
+            if thread is not threading.current_thread():thread.join()
+
 
 class Terminals:
     def __init__(self,store):
@@ -149,7 +156,7 @@ class Terminals:
 
     def capabilities(self):
         import shutil
-        return {'linux':sys.platform.startswith('linux'),'unprivileged':sys.platform.startswith('linux') and os.geteuid()!=0,'tools':{name:bool(shutil.which(name)) for name in ('bash','nmap','curl','ip','openvpn')},'profiles':PROFILES,'vantage':'Atlas Linux server; connect HTB VPN here or use SSH manually from the terminal to an authorized execution host.'}
+        return {'linux':sys.platform.startswith('linux'),'unprivileged':sys.platform.startswith('linux') and os.geteuid()!=0,'tools':{name:bool(shutil.which(name)) for name in ('bash','nmap','curl','ip','openvpn')},'profiles':PROFILES,'vantage':'Atlas execution host; connect HTB VPN here or use SSH manually from the terminal to an authorized execution host.'}
 
     def get(self,workspace,owner,key):
         session=self.sessions.get(key)
@@ -166,6 +173,7 @@ class Terminals:
             if data.get('digest')!=plan_digest(plan):raise ImportProblem('Preview the current operation before starting.')
         request_fingerprint=plan_digest(plan or {'kind':'interactive-shell'})
         with self.lock:
+            if self.closed.is_set():raise ImportProblem('Atlas terminals are closing; reopen the application before starting another operation.')
             request=data.get('request_id')
             if not isinstance(request,str) or not __import__('re').fullmatch('[0-9a-f]{32}',request):raise ImportProblem('Use a fresh operation request ID.')
             previous=next((s for s in self.sessions.values() if getattr(s,'request_id',None)==request and s.workspace==workspace and s.owner==owner),None)
@@ -197,7 +205,7 @@ class Terminals:
             self.previews={key:row for key,row in self.previews.items() if row['expires']>time.monotonic()}
             if len(self.previews)>=64:raise ImportProblem('Too many pending terminal reviews; wait for a review to expire.')
             self.previews[token]={'workspace':workspace,'owner':owner,'host_id':self.execution.host['id'],'digest':digest,'route':route,'expires':time.monotonic()+60}
-        return {'plan':plan,'digest':digest,'context_token':token,'expires_in':60,'host':self.execution.host.copy(),'vantage':'Atlas Linux server','route':route,'limits':PROFILES[plan['profile']]['description']}
+        return {'plan':plan,'digest':digest,'context_token':token,'expires_in':60,'host':self.execution.host.copy(),'vantage':'Atlas execution host','route':route,'limits':PROFILES[plan['profile']]['description']}
 
     def active(self,workspace):return any(s.workspace==workspace and not s.closed for s in self.sessions.values())
     def delete_workspace(self,workspace,confirmation):
@@ -208,6 +216,8 @@ class Terminals:
             if not isinstance(workspace,str) or not re.fullmatch('[0-9a-f]{32}',workspace):raise ImportProblem('Invalid workspace evidence path.')
             folder=self.root/workspace
             if folder.is_symlink() or not folder.resolve().is_relative_to(self.root.resolve()) or folder.exists() and not folder.is_dir():raise ImportProblem('Evidence path is unsafe; no files or assessment were deleted.')
+            for session in self.sessions.values():
+                if session.workspace==workspace:session.wait_closed()
             self.store.delete(workspace,confirmation)
             if folder.exists():shutil.rmtree(folder)
             for key,session in list(self.sessions.items()):
@@ -219,9 +229,11 @@ class Terminals:
         for session in list(self.sessions.values()):
             if session.owner==owner:
                 session.stop('Operator signed out.')
+                session.wait_closed()
                 with session.lock:session.buffer.clear()
                 self.sessions.pop(session.id,None)
     def shutdown(self):
         self.closed.set()
         with self.lock:self.previews.clear()
         for session in list(self.sessions.values()):session.stop('Atlas stopped.')
+        for session in list(self.sessions.values()):session.wait_closed()

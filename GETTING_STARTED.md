@@ -48,3 +48,7 @@ Use **Discovery** as the target workspace and **Tools** (or **Ctrl/Command+K**) 
 For software scans, review exact CPE/package inventory or an SBOM tied to an existing asset. Use inert loaded JSON data, or explicitly allow software-identity queries to fixed public APIs. Matches go directly to Findings with immutable source snapshots and inventory evidence. KEV and EPSS remain dated prioritization context; no match is not a clean verdict. Read [Public vulnerability scans](docs/vulnerability-scans.md). Back up the separate public cache alongside the assessment database while the app is stopped.
 
 [Operator conveniences](docs/operator-qol.md) explains prepared console handoffs, finding filters, recent tools, shortcuts and draft recovery. Drafts remain only in the current tab; save before reload or sign-out.
+
+## Desktop installation — 0.9.0
+
+For host-VPN lab workflows, install and launch Atlas on that VPN host using the [desktop guide](docs/desktop.md). The native shell uses the same durable evidence model and requires fresh execution/authentication review after restart. The existing hosted URL remains a separate server execution context. Existing server assessments are not automatically moved to local storage.

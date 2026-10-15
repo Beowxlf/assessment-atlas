@@ -219,15 +219,18 @@ class Store:
             w=self.get(workspace)
             subject=data.get('subject');source=data.get('source')
             if subject not in {e['id'] for e in w['entities']}:raise ImportProblem('Choose an existing assessment identity for the captured evidence.')
-            if source not in ('terminal-selection','browser-selection'):raise ImportProblem('Unknown selection source.')
+            if source not in ('terminal-selection','browser-selection','advisory-analysis'):raise ImportProblem('Unknown selection source.')
             title=required_text(data.get('title'),'Evidence title',240)
             value=data.get('text')
             if not isinstance(value,str) or not 1 <= len(value.encode()) <= 12000:raise ImportProblem('Select 1–12,000 UTF-8 bytes of evidence.')
             text=terminal_text(value);key=uid();at=now()
             artifact={'id':uid(),'filename':source+'-'+key+'.txt','source':source,'source_version':'Atlas operator selection 1','adapter_version':'1','imported_at':at,'namespace':next(e for e in w['entities'] if e['id']==subject).get('namespace','default'),'vantage':'Atlas execution host','sha256':hashlib.sha256(value.encode()).hexdigest(),'intake_mode':'operator selection','warnings':['Operator-selected excerpt; raw screen/terminal buffers are not automatically retained. Review sensitive content and verify interpretation.'],'raw_reference':'Selected excerpt normalized/scrubbed; retain protected original output where available.'}
-            artifact['vantage']='Atlas Linux server' if context else 'Operator-supplied selection; original vantage unverified'
+            artifact['vantage']=('Operator-selected HTTPS advisory computation companion' if source == 'advisory-analysis' else 'Atlas execution host') if context else 'Operator-supplied selection; original vantage unverified'
             if context:artifact['native_context']=copy.deepcopy(context)
             obs={'id':key,'subject':subject,'target':None,'kind':source,'value':{'title':title,'text':text},'status':'observed','basis':'manual','collected_at':at,'vantage':artifact['vantage'],'location':'operator selection','import_id':artifact['id']}
+            if source == 'advisory-analysis':
+                obs.update(status='inferred', basis='source report')
+                artifact['warnings'] = ['Explicit software-identity upload for cache-only analysis. Advisory correlations are unvalidated leads; missing matches do not establish a clean target.']
             w['imports'].append(artifact);w['observations'].append(obs);w['history'].append({'at':at,'action':'evidence captured','detail':title,'import_id':artifact['id']});self._save(w)
             return {'workspace':self.view(w),'observation_id':key,'import_id':artifact['id']}
 

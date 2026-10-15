@@ -76,3 +76,7 @@ The owner requested and received opt-in private Ubuntu hosting, an embedded exec
 ## Dependable execution extension — 0.8.0
 
 The owner requested the next investigation milestone: correct host, VPN route and authenticated session, plus safe interrupted-test continuation. [ADR 0009](adr/0009-dependable-execution-context.md) records the implemented installation identity, explicit host/interface expectations, transient exact-operation review, session binding and preserved incomplete outcomes. [Execution context](execution-context.md) distinguishes strict native socket checks, configured external-tool sampling and manual shell/embedded-browser limits. No connector or real HTB VPN profile is introduced. The release receipt records actual regression, Ubuntu and restart qualification; human productivity and real HTB gates remain open.
+
+## Implemented delivery step — operator-host desktop (0.9.0)
+
+Per-user desktop runtime/installation, local VPN execution boundary, optional software-only cache-analysis companion and manual stable-release checks are implemented. Exact platform acceptance is in [desktop verification](desktop-verification.md), and installation is in [desktop setup](desktop.md). Remaining work: signed bundled native installers, reviewed server-to-local assessment migration/synchronization, broader native platform acceptance and larger asynchronous computation jobs. Remote host execution is not silently substituted when a VPN is absent.

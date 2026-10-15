@@ -49,3 +49,11 @@ Public vulnerability imports/SBOMs are inert. Public API access is opt-in and li
 ## Resumable investigation boundary
 
 [Investigations](docs/investigations.md) persist selected question/decision metadata and existing evidence/run references with optimistic revisions. Prepared tests are bound to that revision and require execution review; run creation/linkage is atomic before requests. Account labels are opaque metadata. No cookie jars, credentials, login recipes, live buffers or executable plans are restored. Restart retains interrupted results and requires authentication again. Manual finding handoff is explicitly unvalidated. New free text and snapshot context follow default export withholding; selected evidence retains its original capture/retention limits.
+
+## Operator-host desktop and companion — 0.9.0
+
+The desktop shell runs the existing application unprivileged on the operator host, with an OS-assigned loopback port, private native browsing context, no application Python bridge, remote/file navigation denial and explicit report-download destinations. Its local database remains separate from the runtime installation. Existing scope/route/session review remains mandatory; a server connection cannot substitute for a missing local VPN.
+
+Companion sign-in/CA/connection data is process memory only. Verified HTTPS and existing hosted session/Origin/nonce checks protect cache-only matching. An exact field allowlist excludes asset/workspace/target/evidence/credential fields from software uploads. Software/package identities themselves may be sensitive and require an explicit review checkbox. Analysis results are untrusted source reports and may be retained only by explicit local action as inferred evidence. No target operation, automatic source lookup or confirmed finding is produced by the companion.
+
+Stable update checks contact a fixed GitHub endpoint only when requested; verified release links open on explicit action. Updates never execute downloaded code automatically. Source is publicly visible with all rights reserved; publication does not make engagement data suitable for the repository. See [desktop setup](docs/desktop.md).

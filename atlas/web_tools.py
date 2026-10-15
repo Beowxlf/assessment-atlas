@@ -45,7 +45,7 @@ def passive_checks(event):
 
 class WebTools:
     def __init__(self,store,port):
-        self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={};self.sockets={};self.receivers={}
+        self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={};self.sockets={};self.receivers={};self.closing=threading.Event()
         self.execution=ExecutionContexts(store);self.execution.session_validator=self.session_config;self.execution.atlas_port=port
 
     def session_binding(self,workspace,config):
@@ -211,6 +211,7 @@ class WebTools:
         if kind in ('scanner','matrix'):plan.update(checks=checks,http_version=scope.protocol,audit_crawl=config.get('audit_crawl') is True,explicit_audit_requests=len(config.get('audit_requests',[])),authentication=auth_summary if config.get('auth') else {'mode':'unauthenticated'},oob_receiver_id=config.get('oob_id'))
         if kind=='matrix':plan.update(attack_mode=config.get('attack_mode','sniper'),positions=[{'name':p['name'],'location':p['location'],'payload_count':len(p['payloads'])} for p in config['positions']],processor=config.get('processor','none'))
         with self.lock:
+            if self.closing.is_set():raise ImportProblem('Atlas web tools are closing; reopen the application before starting another operation.')
             if sum(not j['stop'].is_set() and j['thread'].is_alive() for j in self.jobs.values())>=2:raise ImportProblem('At most two active web jobs are supported.')
             proof=self.bind_execution(workspace,scope,config,kind=kind)
             if proof:
@@ -341,11 +342,22 @@ class WebTools:
         return {'left':left,'right':right,'identical':a==b,'diff':'\n'.join(list(difflib.unified_diff(a.splitlines(),b.splitlines(),fromfile='First response',tofile='Second response'))[:500]),'limit':'Up to 500 difference lines; bodies bounded to 64 KiB. Transient, not a validated vulnerability.'}
 
     def shutdown(self):
+        self.closing.set()
         for job in list(self.jobs.values()):job['stop'].set()
-        for browser in list(self.browsers.values()):browser.stop()
-        for proxy in list(self.proxies.values()):proxy.close()
-        for job in list(self.jobs.values()):job['thread'].join(timeout=6)
+        resources=[*[(browser,browser.stop) for browser in self.browsers.values()],
+                   *[(proxy,proxy.close) for proxy in self.proxies.values()],
+                   *[(session,session.close) for session in self.sockets.values()],
+                   *[(receiver,receiver.close) for receiver in self.receivers.values()]]
+        errors=[]
+        for resource,stop in resources:
+            try:stop()
+            except Exception as exc:errors.append(exc)
+        # Network exchanges and external processes have their own bounded
+        # timeouts. A join deadline must not release storage while their final
+        # evidence writer is still running after cancellation.
+        for job in list(self.jobs.values()):
+            if job['thread'] is not threading.current_thread():job['thread'].join()
+        for resource,_ in resources:resource.wait_closed()
         for row in self.sessions.values():row['config'].clear()
         self.sessions.clear();self.volatile.clear()
-        for session in list(self.sockets.values()):session.close()
-        for receiver in list(self.receivers.values()):receiver.close()
+        if errors:raise errors[0]

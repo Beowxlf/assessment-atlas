@@ -18,6 +18,7 @@ from .web_tools import WebTools
 from .vulnerability_tools import VulnerabilityTools
 from .hosted_auth import HostedAuth
 from .terminal import Terminals
+from .companion import Companion, PROTOCOL, analyze
 
 STATIC = Path(__file__).parent / "static"
 ROOT = Path(__file__).parent.parent
@@ -28,6 +29,11 @@ class AtlasServer(ThreadingHTTPServer):
     daemon_threads = True
     def __init__(self, address, store, hosted=None):
         if address[0]!='127.0.0.1':raise ImportProblem('Keep Atlas on loopback; use the configured HTTPS reverse proxy for browser hosting.')
+        self.closing = threading.Event()
+        self._request_condition = threading.Condition()
+        self._request_workers = set()
+        self._close_lock = threading.Lock()
+        self._close_complete = False
         super().__init__(address, Handler)
         self.store = store
         self.session = secrets.token_urlsafe(32)
@@ -36,12 +42,67 @@ class AtlasServer(ThreadingHTTPServer):
         self.vulnerability = VulnerabilityTools(store)
         self.hosted=hosted
         self.terminals=Terminals(store)
+        self.companion=Companion()
+
+    def process_request(self, request, client_address):
+        # ThreadingMixIn does not join daemon request threads. Track accepted
+        # workers before starting them so closing cannot miss a pending request
+        # and release the desktop storage lock while that request can mutate it.
+        with self._request_condition:
+            if self.closing.is_set():
+                self.shutdown_request(request)
+                return
+            request.settimeout(15)
+            worker = threading.Thread(target=self.process_request_thread,
+                                      args=(request, client_address), daemon=self.daemon_threads)
+            self._request_workers.add(worker)
+            try:
+                worker.start()
+            except BaseException:
+                self._request_workers.discard(worker)
+                self._request_condition.notify_all()
+                self.shutdown_request(request)
+                raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            with self._request_condition:
+                self._request_workers.discard(threading.current_thread())
+                self._request_condition.notify_all()
+
+    def shutdown(self):
+        self.closing.set()
+        super().shutdown()
 
     def server_close(self):
-        self.terminals.shutdown()
-        self.vulnerability.shutdown()
-        self.web.shutdown()
-        super().server_close()
+        self.closing.set()
+        with self._close_lock:
+            if self._close_complete:
+                return
+            super().server_close()
+            # Every admitted request finishes before manager shutdown. A request
+            # admitted just before closing may finish its current operation, but
+            # it cannot start a job after the manager has already been stopped.
+            with self._request_condition:
+                self._request_condition.wait_for(lambda: not self._request_workers)
+            companion = getattr(self, 'companion', None)
+            if companion is not None:
+                companion.connections.clear()
+                companion.reports.clear()
+                companion.updates.clear()
+            errors = []
+            for name in ('terminals', 'vulnerability', 'web'):
+                manager = getattr(self, name, None)
+                if manager is not None:
+                    try:
+                        manager.shutdown()
+                    except Exception as exc:
+                        errors.append(exc)
+            self._close_complete = True
+            if errors:
+                raise errors[0]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -91,7 +152,16 @@ class Handler(BaseHTTPRequestHandler):
     def owner(self):return self.operator_session['id'] if self.server.hosted else self.server.session
     def csrf(self):return self.operator_session['nonce'] if self.server.hosted else self.server.nonce
 
+    def reject_closing(self):
+        if not self.server.closing.is_set():
+            return False
+        self.close_connection = True
+        self.respond({'error': 'Assessment Atlas is closing. Reopen the application before starting another operation.'}, 503)
+        return True
+
     def do_GET(self):
+        if self.reject_closing():
+            return
         if not self.trusted_host():
             return self.respond({"error": "Unrecognized local host."}, 403)
         path = urlsplit(self.path).path
@@ -106,6 +176,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
         if path in ('/investigations.js', '/investigations.html'):
             return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
+        if path == '/desktop-tools.js':
+            return self.respond((STATIC / 'desktop-tools.js').read_bytes(), mime='text/javascript')
         if path in ("/", "/app.js", "/web-tools.js", "/web-tools.html", "/styles.css"):
             file = STATIC / {"/": "index.html", "/app.js": "app.js", "/web-tools.js":"web-tools.js", "/web-tools.html":"web-tools.html", "/styles.css": "styles.css"}[path]
             mime = {"/": "text/html", "/app.js": "text/javascript", "/web-tools.js":"text/javascript", "/web-tools.html":"text/html", "/styles.css": "text/css"}[path]
@@ -113,6 +185,11 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authenticated():
             return self.respond({"error": "Open the local application first."}, 403)
         try:
+            if path == '/api/companion/capabilities':
+                return self.respond({'protocol': PROTOCOL, 'cache_analysis': bool(self.server.hosted),
+                                     'target_execution': False, 'max_identities': 20})
+            if path == '/api/companion/status':
+                return self.respond({**self.server.companion.status(self.owner()), 'client_available': not bool(self.server.hosted)})
             if path=='/api/execution/status':
                 query=parse_qs(urlsplit(self.path).query)
                 self.server.store.get(query.get('workspace',[''])[0])
@@ -136,7 +213,8 @@ class Handler(BaseHTTPRequestHandler):
                 from .web_protocols import available
                 return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace,self.owner()),'sockets':[s.status() for s in self.server.web.sockets.values() if s.workspace==workspace],'receivers':[r.status() for r in self.server.web.receivers.values() if r.workspace==workspace],'protocols':available()})
             if path == "/api/session":
-                return self.respond({"nonce": self.csrf(), "version": __version__, "mode":'hosted' if self.server.hosted else 'local', "storage": 'Protected data on the Atlas server' if self.server.hosted else str(self.server.store.path), "vantage":'Terminal and native browser/web requests execute on the Atlas host. The accessing browser does not supply its VPN route.', "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
+                mode = 'hosted' if self.server.hosted else 'desktop' if getattr(self.server, 'desktop', False) else 'local'
+                return self.respond({"nonce": self.csrf(), "version": __version__, "mode": mode, "storage": 'Protected data on the Atlas server' if self.server.hosted else str(self.server.store.path), "vantage":'Target operations execute on this installed Atlas host and use its reviewed routes. Connect the VPN here.' if mode != 'hosted' else 'Target operations execute on the server. The accessing browser does not supply its VPN route.', "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
             if path == "/api/workspaces":
                 return self.respond(self.server.store.list())
             if path == "/api/workspace":
@@ -147,13 +225,17 @@ class Handler(BaseHTTPRequestHandler):
             self.respond({"error": str(exc)}, 400)
 
     def do_POST(self):
+        if self.reject_closing():
+            return
         port = self.server.server_address[1]
         path=urlsplit(self.path).path
         allowed_origin = (self.server.hosted.origin,) if self.server.hosted else (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
         if self.server.hosted and path=='/api/login':
             if not self.trusted_host() or self.headers.get('Origin') not in allowed_origin:return self.respond({'error':'Sign-in origin check failed.'},403)
             try:
-                data=self.read_json(4096);result=self.server.hosted.login(data.get('password'))
+                data=self.read_json(4096)
+                if self.reject_closing():return
+                result=self.server.hosted.login(data.get('password'))
                 if not result:return self.respond({'error':'Operator sign-in failed.'},401)
                 return self.respond({'signed_in':True},cookie=self.server.hosted.cookie(result[0]))
             except (ImportProblem,ValueError,UnicodeError,TypeError,socket.timeout) as exc:return self.respond({'error':str(exc)[:300]},400)
@@ -171,8 +253,33 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond({"error": "Local session check failed."}, 403)
         try:
             data=self.read_json()
+            if self.reject_closing():return
             store = self.server.store
             workspace = data.get("workspace", "")
+            if path == '/api/companion/analyze':
+                if not self.server.hosted:
+                    raise ImportProblem('Remote analysis is available only on an authenticated HTTPS companion.')
+                return self.respond(analyze(self.server.vulnerability.cache, data))
+            if path.startswith('/api/companion/') or path.startswith('/api/updates/'):
+                if self.server.hosted:
+                    raise ImportProblem('Companion connections and update checks belong to the installed local app.')
+                companion = self.server.companion
+                if path == '/api/updates/check':
+                    return self.respond(companion.update_check(self.owner()))
+                if path == '/api/updates/open':
+                    return self.respond(companion.open_update(self.owner()))
+                if path == '/api/companion/connect':
+                    return self.respond(companion.connect(self.owner(), data))
+                if path == '/api/companion/disconnect':
+                    return self.respond(companion.disconnect(self.owner()))
+                if path == '/api/companion/run':
+                    w = store.get(workspace)
+                    if data.get('subject') not in {e['id'] for e in w['entities']}:
+                        raise ImportProblem('Choose a local assessment identity for this analysis.')
+                    return self.respond(companion.run(self.owner(), workspace, data['subject'], data))
+                if path == '/api/companion/save':
+                    return self.respond(companion.save(self.owner(), workspace, data.get('report_id'), store))
+                return self.respond({'error': 'Unknown companion action.'}, 404)
             if path=='/api/execution/preview':
                 return self.respond(self.server.web.execution.preview(workspace,{**data,'_execution_owner':self.owner()}))
             if path.startswith('/api/web/'):
@@ -212,7 +319,7 @@ class Handler(BaseHTTPRequestHandler):
                 context=None
                 if data.get('native_id'):
                     if data.get('source')=='terminal-selection':
-                        terminal=self.server.terminals.get(workspace,self.owner(),data['native_id']);context={'run_id':terminal.id,'vantage':'Atlas Linux server','route':terminal.route}
+                        terminal=self.server.terminals.get(workspace,self.owner(),data['native_id']);context={'run_id':terminal.id,'vantage':'Atlas execution host','route':terminal.route}
                     elif data.get('source')=='browser-selection':
                         browser=self.server.web.browsers.get(data['native_id'])
                         if not browser or browser.workspace!=workspace or getattr(browser,'owner',None)!=self.owner():raise ImportProblem('Browser evidence belongs to another workspace/operator session.')
@@ -369,7 +476,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/demo":
                 w = store.create("Synthetic training engagement", "Synthetic documentation-only addresses and findings. Not a live assessment.")
                 for filename in ("nmap.xml", "device.json", "scan.nessus", "nuclei.jsonl", "httpx.jsonl", "manual.json"):
-                    store.import_file(w["id"], (ROOT / "fixtures" / filename).read_text(encoding="utf-8"), filename, "auto", {"vantage": "Synthetic assessor", "namespace": "synthetic"})
+                    fixture_dir = Path(__file__).parent / 'demo_fixtures'
+                    if not fixture_dir.is_dir(): fixture_dir = ROOT / 'fixtures'
+                    store.import_file(w["id"], (fixture_dir / filename).read_text(encoding="utf-8"), filename, "auto", {"vantage": "Synthetic assessor", "namespace": "synthetic"})
                 return self.respond(Store.view(store.get(w["id"])))
             return self.respond({"error": "Not found."}, 404)
         except (ImportProblem, UnicodeError, ValueError, TypeError, socket.timeout) as exc:
