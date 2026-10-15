@@ -1,6 +1,6 @@
 # Suite verification — 0.10.0
 
-Qualification date: October 15, 2026. Runtime qualification used `c8a887ff538aea31d7614e72eafc1bf55b5dccc9`; subsequent receipt and Windows negative-handshake fixture corrections do not change those 61 runtime files. The source release manifest identifies the exact final commit and file digests. Raw receipts, temporary databases and lab identifiers remain outside this public repository.
+Qualification date: October 15, 2026. Full backend qualification used `c8a887ff538aea31d7614e72eafc1bf55b5dccc9`. Final native/frontend qualification used `530bda550c379294f517450400c1799c767f64ee`, adding tested correction/retry after an explicit first-save rejection while preserving ambiguous-request recovery. Subsequent receipt changes preserve those 61 qualified runtime files. The source release manifest identifies the exact final commit and file digests. Raw receipts, temporary databases and lab identifiers remain outside this public repository.
 
 | Executed check | Actual result and boundary |
 | --- | --- |

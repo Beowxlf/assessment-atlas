@@ -27,7 +27,7 @@ A reported resolution or still-present conclusion requires new supporting **obse
 
 An interrupted native test is prepared as a new run under the existing investigation execution rules; it is never resumed with old credentials or authority. The original incomplete run remains inspectable. Manual and external checks can also supply evidence with their original provenance and declared limits.
 
-If another tab updates a retest, a stale save fails and preserves the local edits. Use **Compare saved version** before explicitly discarding them with **Discard local edits and reload saved retest**. An ambiguous first-save failure retries the same creation request, recovers its original result, and then saves newer local edits rather than creating duplicate retests. If edits change while preparation is pending, Atlas retains them and stays in Retests for review.
+If another tab updates a retest, a stale save fails and preserves the local edits. Use **Compare saved version** before explicitly discarding them with **Discard local edits and reload saved retest**. An explicit first-save validation rejection preserves the editable draft so it can be corrected and resubmitted. An ambiguous first-save failure retries the same creation request, recovers its original result, and then saves newer local edits rather than creating duplicate retests. If edits change while preparation is pending, Atlas retains them and stays in Retests for review.
 
 ## Reports and custody
 
