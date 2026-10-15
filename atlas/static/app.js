@@ -13,7 +13,7 @@ function message(text, error = false) { $('message').textContent = text; $('mess
 async function run(fn, b) { if (b) b.disabled = true; try { await fn(); } catch (err) { message(err.message, true); } finally { if (b) b.disabled = false; } }
 async function api(path, data) {
   const r = await fetch('/api/' + path, data ? {method:'POST', headers:{'Content-Type':'application/json','X-Atlas-Nonce':nonce}, body:JSON.stringify(data)} : {});
-  const result = await r.json(); if (r.status===401&&path!=='session') location.assign('/'); if (!r.ok) throw new Error(result.error || 'Request failed.'); return result;
+  const result = await r.json(); if (r.status===401&&path!=='session') location.assign('/'); if (!r.ok) { const error = new Error(result.error || 'Request failed.'); error.status = r.status; throw error; } return result;
 }
 function needsWorkspace() { if (!state) throw new Error('Create or choose a workspace first.'); }
 function label(id) { return state?.entities.find(e => e.id === id)?.label || 'Entire engagement'; }
