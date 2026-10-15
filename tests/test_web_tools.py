@@ -78,7 +78,15 @@ class NativeWebTests(unittest.TestCase):
     def test_request_limit_keeps_partial_result(self):
         result=self.terminal(self.tools.start(self.w['id'],'crawl',{**self.config,'max_requests':1}));self.assertEqual(result['state'],'partial');self.assertEqual(result['requests'],1);self.assertEqual(len(result['import_ids']),1)
     def test_cancellation_keeps_completed_evidence(self):
-        run=self.tools.start(self.w['id'],'crawl',{**self.config,'paths':['/one','/two','/three'],'delay_ms':1000});time.sleep(.1);self.tools.stop(self.w['id'],run['id']);result=self.terminal(run)
+        run=self.tools.start(self.w['id'],'crawl',{**self.config,'paths':['/one','/two','/three'],'delay_ms':1000})
+        deadline=time.monotonic()+5
+        while time.monotonic()<deadline:
+            persisted=next(r for r in self.store.web_runs(self.w['id']) if r['id']==run['id'])
+            if persisted['requests']>=1 and persisted['import_ids']:break
+            self.assertIn(persisted['state'],('queued','running'),persisted)
+            time.sleep(.02)
+        else:self.fail('No completed crawl capture was persisted before cancellation.')
+        self.tools.stop(self.w['id'],run['id']);result=self.terminal(run)
         self.assertEqual(result['state'],'cancelled');self.assertGreaterEqual(result['requests'],1)
     def test_workbench_compare_and_sensitive_data_handling(self):
         first=self.tools.send(self.w['id'],{**self.config,'request_url':self.url+'/echo?q=alpha','headers':'Authorization: Bearer synthetic-auth-secret\nCookie: session=synthetic-cookie-secret','retain_body':True})

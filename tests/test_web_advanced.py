@@ -181,7 +181,15 @@ class AdvancedTests(unittest.TestCase):
         result=self.terminal(self.tools.start(self.workspace['id'],'matrix',{**self.config,'url':self.url+'/private/html?q=base&a=old','auth':self.auth,'active_audit':True,'attack_mode':'cluster','positions':[{'location':'query','name':'q','payloads':['ONE','TWO']},{'location':'query','name':'a','payloads':['A','B']}]}));self.assertEqual(result['state'],'completed');self.assertEqual(result['requests'],10)
     def test_limits_and_cancel_keep_auth_evidence(self):
         result=self.scan(max_requests=2);self.assertEqual(result['state'],'partial');self.assertEqual(result['requests'],2);self.assertEqual(result['audited_endpoints'],0)
-        run=self.tools.start(self.workspace['id'],'scanner',{**self.config,'auth':self.auth,'delay_ms':1000});time.sleep(.1);self.tools.stop(self.workspace['id'],run['id']);result=self.terminal(run);self.assertEqual(result['state'],'cancelled');self.assertGreaterEqual(len(result['import_ids']),1)
+        run=self.tools.start(self.workspace['id'],'scanner',{**self.config,'auth':self.auth,'delay_ms':1000})
+        deadline=time.monotonic()+5
+        while time.monotonic()<deadline:
+            persisted=next(r for r in self.store.web_runs(self.workspace['id']) if r['id']==run['id'])
+            if persisted['requests']>=1 and persisted['import_ids']:break
+            self.assertIn(persisted['state'],('queued','running'),persisted)
+            time.sleep(.02)
+        else:self.fail('No completed authentication capture was persisted before cancellation.')
+        self.tools.stop(self.workspace['id'],run['id']);result=self.terminal(run);self.assertEqual(result['state'],'cancelled');self.assertGreaterEqual(len(result['import_ids']),1)
     def test_codecs_measurements_and_inert_openapi(self):
         value='Hello <é> & "fixture"'
         for codec in ('base64','url','html','hex','json'):self.assertEqual(transform(transform(value,codec+'-encode'),codec+'-decode'),value)
