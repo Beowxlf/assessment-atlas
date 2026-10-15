@@ -1,5 +1,7 @@
 # Roadmap, owner decisions, and risks
 
+For the **proposed next product direction**, see [Atlas: from observations to defensible findings](product-vision-and-roadmap.md). It prioritizes resumable investigations, connected evidence and dependable execution, with sequenced workflow acceptance gates. The stages and decisions below retain the original delivery history and governance baseline.
+
 **Original planning baseline: October 12, 2026; updated October 14, 2026 after authorized native extensions.** Version 0.5.0 now extends the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
 
 ## Current evidence and decisions

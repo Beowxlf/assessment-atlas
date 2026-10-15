@@ -13,7 +13,7 @@ from urllib.parse import parse_qsl,urlencode,urlsplit,urlunsplit
 from . import __version__
 from .importers import ImportProblem,clean
 from .store import now
-from .web_transport import Scope,fetch
+from .web_transport import Scope,fetch,METHODS
 from .web_evidence import safe_url
 
 
@@ -103,9 +103,40 @@ class WebTools:
         result=self.store.import_file(workspace,json.dumps(data,ensure_ascii=False),source+'-'+event['id']+'.json',source,{'vantage':clean(config.get('vantage','Atlas local operator'))[:500],'namespace':clean(config.get('namespace','web'))[:500]},intake='native live')
         return result['import']['id']
 
+    def investigation_for_test(self, workspace, config, kind):
+        """Validate a prepared handoff; it carries neither authority nor secrets."""
+        key = config.get('investigation_id')
+        if key is None:
+            return None
+        if not isinstance(key, str) or not key:
+            raise ImportProblem('Choose an investigation in this workspace.')
+        row = next((i for i in self.store.get(workspace).get('investigations', []) if i['id'] == key), None)
+        if not row:
+            raise ImportProblem('Investigation belongs to another workspace or no longer exists.')
+        revision = config.get('investigation_revision')
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision != row['revision']:
+            raise ImportProblem('Investigation changed since this test was prepared. Review it and prepare the test again.')
+        if row['status'] == 'closed':
+            raise ImportProblem('Reopen this investigation before starting another test.')
+        if row['access_mode'] == 'authenticated' and (kind not in ('scanner', 'matrix') or not config.get('auth')):
+            raise ImportProblem('Re-establish authentication and use the authenticated scanner for this investigation. Saved access references are not sessions.')
+        return row
+
+    def investigation_run(self, workspace, kind, plan, config):
+        # Called before a worker or target request begins. Keep validation and
+        # linkage atomic against simultaneous edits to the investigation.
+        with self.store.lock:
+            investigation = self.investigation_for_test(workspace, config, kind)
+            if investigation:
+                run = self.store.start_investigation_run(workspace, kind, plan, investigation['id'])
+                run['investigation_revision'] = investigation['revision'] + 1
+                return run
+            return self.store.start_web_run(workspace, kind, plan)
+
     def start(self,workspace,kind,config):
         if kind not in ('crawl','payload','scanner','matrix'):raise ImportProblem('Unknown web run type.')
         config=self.session_config(workspace,config)
+        self.investigation_for_test(workspace, config, kind)
         scope=Scope(config,self.port)
         self.block_controls(scope)
         scope.check(config.get('request_url') or config['url'])
@@ -139,7 +170,7 @@ class WebTools:
         if kind=='matrix':plan.update(attack_mode=config.get('attack_mode','sniper'),positions=[{'name':p['name'],'location':p['location'],'payload_count':len(p['payloads'])} for p in config['positions']],processor=config.get('processor','none'))
         with self.lock:
             if sum(not j['stop'].is_set() and j['thread'].is_alive() for j in self.jobs.values())>=2:raise ImportProblem('At most two active web jobs are supported.')
-            run=self.store.start_web_run(workspace,kind,plan);stop=threading.Event()
+            run=self.investigation_run(workspace,kind,plan,config);stop=threading.Event()
             thread=threading.Thread(target=self._job,args=(workspace,run,scope,copy.deepcopy(config),stop),daemon=True)
             self.jobs[run['id']]={'workspace':workspace,'stop':stop,'thread':thread};thread.start()
         return run
@@ -212,14 +243,40 @@ class WebTools:
         return {'stop_requested':True,'run_id':run_id}
 
     def send(self,workspace,config):
+        method = config.get('method', 'GET')
+        if not isinstance(method, str) or method not in METHODS:
+            raise ImportProblem('Unsupported HTTP method.')
+        self.investigation_for_test(workspace, config, 'request')
         scope=Scope(config,self.port)
         self.block_controls(scope)
-        event=fetch(scope,config.get('request_url') or config['url'],config.get('method','GET'),config.get('headers',[]),config.get('body',''))
-        imported=self.capture(workspace,event,'web-workbench',config)
+        run = None
+        if config.get('investigation_id') is not None:
+            plan = {**scope.summary(), 'url': safe_url(config.get('request_url') or config['url']),
+                    'capture_mode': 'redacted' if config.get('retain_body') else 'metadata',
+                    'max_requests': 1, 'max_seconds': 5, 'method': method,
+                    'authentication': {'mode': 'unverified request'}}
+            run = self.investigation_run(workspace, 'request', plan, config)
+            self.store.update_web_run(workspace, run['id'], state='running')
+        try:
+            event=fetch(scope,config.get('request_url') or config['url'],config.get('method','GET'),config.get('headers',[]),config.get('body',''))
+            imported=self.capture(workspace,event,'web-workbench',config)
+        except Exception:
+            if run:
+                self.store.update_web_run(workspace, run['id'], state='failed', ended_at=now(),
+                                          reason='Request failed; no conclusion about the investigation was established.')
+            raise
+        if run:
+            self.store.update_web_run(workspace, run['id'], state='failed' if event.get('error') else 'completed',
+                                      ended_at=now(), requests=1, import_ids=[imported],
+                                      reason='Request failed; inspect retained evidence.' if event.get('error') else 'Request captured; interpretation remains with the assessor.')
         with self.lock:
             if len(self.volatile)>=20:self.volatile.pop(next(iter(self.volatile)))
             self.volatile[event['id']]={'workspace':workspace,'event':event}
-        return {'capture_id':event['id'],'import_id':imported,'event':event,'retention':'Raw editor/result is transient (up to 20 exchanges per process). Saved evidence follows selected redaction mode.'}
+        result = {'capture_id':event['id'],'import_id':imported,'event':event,'retention':'Raw editor/result is transient (up to 20 exchanges per process). Saved evidence follows selected redaction mode.'}
+        if run:
+            result.update(run_id=run['id'], investigation_id=config['investigation_id'],
+                          investigation_revision=run['investigation_revision'])
+        return result
 
     def compare(self,workspace,left,right):
         with self.lock:

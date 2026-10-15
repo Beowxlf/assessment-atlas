@@ -95,6 +95,9 @@ def run_scan(tools,workspace,run,scope,config,stop):
         with receiver.lock if receiver else nullcontext():
             oob=receiver.summary_for(run['id']) if receiver else {'findings':0,'interactions':0,'import_ids':[]}
             values.update(findings=findings+oob['findings'],oob_findings=oob['findings'],oob_interactions=oob['interactions'],oob_import_ids=oob['import_ids'])
+            values['authentication'] = {'mode': 'session credentials' if auth else 'unauthenticated',
+                                        'session_verified': bool(auth and auth.verified),
+                                        'generation': auth.generation if auth else 0}
             tools.store.update_web_run(workspace,run['id'],**values)
     if not isinstance(excluded,list) or len(excluded)>100 or any(not isinstance(v,str) or len(v)>200 for v in excluded):raise ImportProblem('Excluded parameter names must be a bounded list.')
     def budget():
@@ -221,5 +224,7 @@ def run_scan(tools,workspace,run,scope,config,stop):
     except (ImportProblem,ValueError,TypeError):state='failed';reason='Authentication/audit configuration or response processing failed; completed evidence retained'
     except Exception:state='failed';reason='Audit processing failed; completed evidence retained'
     finally:
-        if auth:auth.clear()
-        update_run(state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,session_refreshes=refreshes,ended_at=now(),reason=reason)
+        try:
+            update_run(state=state,requests=count,import_ids=imports,errors=errors[:100],skipped=skipped,audited_endpoints=audited,ordinary_findings=findings,session_refreshes=refreshes,ended_at=now(),reason=reason)
+        finally:
+            if auth:auth.clear()

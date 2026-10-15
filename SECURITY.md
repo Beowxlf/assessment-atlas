@@ -43,3 +43,7 @@ Public vulnerability imports/SBOMs are inert. Public API access is opt-in and li
 ## Optional hosted Linux execution
 
 [Hosted console](docs/hosted-console.md) specifies a fixed HTTPS origin, loopback backend, salted password hash, session/nonce isolation, logout and throttling. Run unprivileged. The interactive shell is trusted operator access to the app account and filesystem; it is not multi-tenant isolation. Credentials, screen streams and PTY buffers are transient, while bounded configured-operation originals are retained separately under protected data/terminal-evidence. Review sensitive excerpts and original custody; scrubbing cannot guarantee every secret is removed. Browser execution requires the Linux Chromium sandbox and verified upstream TLS. A host VPN route is required; browser-client VPN state is unrelated.
+
+## Resumable investigation boundary
+
+[Investigations](docs/investigations.md) persist selected question/decision metadata and existing evidence/run references with optimistic revisions. Prepared tests are bound to that revision and require execution review; run creation/linkage is atomic before requests. Account labels are opaque metadata. No cookie jars, credentials, login recipes, live buffers or executable plans are restored. Restart retains interrupted results and requires authentication again. Manual finding handoff is explicitly unvalidated. New free text and snapshot context follow default export withholding; selected evidence retains its original capture/retention limits.

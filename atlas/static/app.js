@@ -47,6 +47,7 @@ function show(view) {
   if (view === 'map') renderGraph();
   if (view === 'report') renderExportSelection();
   if(window.atlasOperatorShow)window.atlasOperatorShow(view);
+  if(window.atlasInvestigationShow)window.atlasInvestigationShow(view);
 }
 async function refreshList(selected) {
   const workspaces = await api('workspaces'); clear('workspace').append(new Option('Choose a workspace',''));
@@ -79,6 +80,7 @@ function render() {
   if(window.atlasVulnerabilityRefresh)window.atlasVulnerabilityRefresh();
   if(window.atlasOperatorRefresh)window.atlasOperatorRefresh();
   if(window.atlasConsoleRefresh)window.atlasConsoleRefresh();
+  if(window.atlasInvestigationRefresh)window.atlasInvestigationRefresh();
 }
 function options(id, nodes, emptyText) { const select=clear(id); if(emptyText) select.append(new Option(emptyText,'')); for(const n of nodes) select.append(new Option(n.label + ' · ' + n.kind,n.id)); }
 function populateFilters() {
@@ -160,6 +162,7 @@ function renderFindings() {
   $('finding-count').textContent = matches.length+' of '+entries.length+' findings · '+(state?.findings.length || 0)+' source assertions · '+manual.length+' manual findings. Filters affect this view; reports keep their own selection.';
   for (const {record:f,type} of matches) {
     const card = el('article','','card finding-card');
+    card.id='finding-'+f.id; card.tabIndex=-1;
     card.append(badge(f.severity || 'unrated'),badge(type === 'manual' ? 'manual finding' : f.validation),badge(f.status),el('h2',f.title));
     if (type === 'manual') {
       card.append(el('p',label(f.subject),'muted'),el('p',f.details),el('p','Evidence: '+(f.evidence_refs || 'No evidence reference supplied'),'subline'),

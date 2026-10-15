@@ -1,6 +1,7 @@
 'use strict';
 let operatorWorkspace='',operatorTarget='',operatorInitialized=false;
 const atlasTools=[
+  {name:'Resumable investigations',group:'Assessment',description:'Continue a question, link tests and evidence, and hand a decision into a finding.',view:'investigations',keywords:'resume question hypothesis authenticated evidence finding next action'},
   {name:'Embedded terminal',group:'Discovery',description:'Run Linux shell commands or bounded discovery profiles and document selected evidence.',view:'console',keywords:'htb nmap vpn shell terminal command enumeration'},
   {name:'Embedded browser',group:'Testing',description:'Interact with a scoped browser on the execution host and prepare authenticated tests.',view:'console',consoleTab:'browser',keywords:'htb browser login web testing'},
   {name:'Evidence to finding',group:'Assessment',description:'Attach a reviewed terminal/browser excerpt and draft a finding with its evidence reference.',view:'console',consoleTab:'evidence',keywords:'document quick finding notes evidence'},
@@ -44,7 +45,7 @@ function operatorRecentView() {
 function operatorArrangeNavigation(){
   if(!operatorInitialized)return;
   const nav=document.querySelector('nav');const more=$('extra-views');
-  const titles={overview:'Workspace',discovery:'Discovery',tools:'Tools',findings:'Findings',evidence:'Evidence',report:'Reports'};
+  const titles={overview:'Workspace',investigations:'Investigations',discovery:'Discovery',tools:'Tools',findings:'Findings',evidence:'Evidence',report:'Reports'};
   for(const [view,title] of Object.entries(titles)){let b=nav.querySelector('[data-view="'+view+'"]');if(!b){b=button(title,()=>operatorOpen({view}));b.dataset.view=view;}b.textContent=title;nav.insertBefore(b,more);}
   for(const view of ['map','activity','import','web','vulnerability','console']){const b=nav.querySelector('[data-view="'+view+'"]');if(b&&!more.contains(b))more.append(b);}
   const parent={map:'discovery',activity:'evidence',import:'discovery',web:'tools',vulnerability:'tools',console:'tools'}[currentView];
@@ -67,6 +68,7 @@ async function operatorOpen(tool){
 function operatorToolsView(container,query,compact=false){
   container.replaceChildren();const words=query.toLowerCase().trim().split(/\s+/).filter(Boolean);const matches=atlasTools.filter(t=>words.every(w=>(t.name+' '+t.group+' '+t.description+' '+t.keywords).toLowerCase().includes(w)));
   if(compact&&!words.length){const recent=operatorRecentTools();matches.sort((a,b)=>(recent.includes(a.name)?recent.indexOf(a.name):99)-(recent.includes(b.name)?recent.indexOf(b.name):99));}
+  if(compact&&words.length){const phrase=query.toLowerCase().trim();const rank=tool=>{const name=tool.name.toLowerCase();return name===phrase?0:name.startsWith(phrase)?1:name.includes(phrase)?2:3;};matches.sort((a,b)=>rank(a)-rank(b));}
   for(const tool of matches){const card=el(compact?'div':'article','',compact?'list-item':'card tool-card');card.append(el('p',tool.group,'eyebrow'),el('h2',tool.name),el('p',tool.description,'muted'),button('Open '+tool.name,async()=>{if($('tool-dialog').open)$('tool-dialog').close('navigate');await operatorOpen(tool);}));container.append(card);}
   if(!matches.length)container.append(el('p','No matching tool. Try a task such as discovery, replay, authentication, CVE, or decoder.','muted'));
   if(!compact)$('tools-count').textContent=matches.length+' available tools · opening a tool prepares its controls; collection starts only when you choose Start or Send.';
@@ -85,9 +87,10 @@ function operatorURLs(node){
   }return urls.slice(0,20);
 }
 async function operatorPrepareWeb(entry){
-  const workspace=state.id;await operatorOpen({view:'web',tab:'crawl'});if(state?.id!==workspace)return;for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();$('web-url').value=new URL(entry.url).origin+'/';$('web-request-url').value=entry.url;$('web-session').value='';webClearAuth();$('web-authorized').checked=false;
+  window.atlasResetInvestigationTest?.();
+  const workspace=state.id;await operatorOpen({view:'web',tab:'crawl'});if(state?.id!==workspace)return;for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();$('web-url').value=entry?new URL(entry.url).origin+'/':'';$('web-request-url').value=entry?.url||'';$('web-session').value='';webClearAuth();$('web-authorized').checked=false;
   for(const id of ['web-auth-check','web-auth-marker','web-auth-origins','web-login-url','web-login-preflight','web-login-csrf','web-login-bearer','web-protected-marker','web-audit-requests','web-custom-checks','web-schema','web-positions','web-canary-path','web-canary-marker','web-canary-url'])$(id).value='';$('web-auth-settings').hidden=true;$('web-auth-toggle').setAttribute('aria-expanded','false');$('web-active-audit').checked=false;$('web-oob-select').value='';document.querySelectorAll('#web-checks input, #web-more-checks input').forEach(input=>input.checked=input.value==='passive');for(const id of ['web-request-result','web-session-result','web-schema-result'])clear(id);
-  $('web-url').focus();message('Discovery target prepared. '+entry.basis+'. Review the exact URL, paths and authorization before collecting.');
+  $('web-url').focus();message(entry?'Discovery target prepared. '+entry.basis+'. Review the exact URL, paths and authorization before collecting.':'Enter the exact owned URL and review paths, limits and authorization before collecting.');
 }
 async function operatorPrepareVulnerability(node){
   const workspace=state.id;await operatorOpen({view:'vulnerability'});if(state?.id!==workspace)return;vulnSelected.clear();const original=node.members[0];$('vuln-filter').value=original;$('vuln-asset').value=original;$('vuln-sbom-asset').value=original;vulnInventoryView();

@@ -104,6 +104,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond((STATIC/path[1:]).read_bytes(),mime='text/javascript' if path.endswith('.js') else 'text/css' if path.endswith('.css') else 'text/html')
         if path in ('/vulnerability-tools.js', '/vulnerability-tools.html', '/operator-tools.js'):
             return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
+        if path in ('/investigations.js', '/investigations.html'):
+            return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
         if path in ("/", "/app.js", "/web-tools.js", "/web-tools.html", "/styles.css"):
             file = STATIC / {"/": "index.html", "/app.js": "app.js", "/web-tools.js":"web-tools.js", "/web-tools.html":"web-tools.html", "/styles.css": "styles.css"}[path]
             mime = {"/": "text/html", "/app.js": "text/javascript", "/web-tools.js":"text/javascript", "/web-tools.html":"text/html", "/styles.css": "text/css"}[path]
@@ -167,6 +169,20 @@ class Handler(BaseHTTPRequestHandler):
             data=self.read_json()
             store = self.server.store
             workspace = data.get("workspace", "")
+            if path.startswith('/api/investigation/'):
+                if not isinstance(workspace, str):
+                    raise ImportProblem('Choose a workspace identifier.')
+                actions = {
+                    '/api/investigation/save': store.save_investigation,
+                    '/api/investigation/run': store.link_investigation_run,
+                    '/api/investigation/evidence': store.link_investigation_evidence,
+                    '/api/investigation/finding': store.investigation_finding,
+                    '/api/investigation/next': store.investigation_next,
+                }
+                action = actions.get(path)
+                if not action:
+                    return self.respond({'error': 'Unknown investigation action.'}, 404)
+                return self.respond(action(workspace, data))
             if path=='/api/logout' and self.server.hosted:
                 owner=self.owner();self.server.terminals.close_owner(owner)
                 for browser in list(self.server.web.browsers.values()):
