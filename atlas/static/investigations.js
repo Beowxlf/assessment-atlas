@@ -263,6 +263,7 @@
     renderList(); refreshPanels(); continuation(); heading();
   }
   window.atlasInvestigationRefresh=refresh;
+  window.atlasOpenInvestigation=async id => { if(!ready)throw new Error('Investigations are still loading. Try opening the linked investigation again.'); await open(id); };
   window.atlasInvestigationShow=view => { if(view==='investigations') refresh(); };
   window.addEventListener('beforeunload',event => { if([...editors.values()].some(ctx => ctx.dirty || ctx.pending)) { event.preventDefault(); event.returnValue=''; } });
 

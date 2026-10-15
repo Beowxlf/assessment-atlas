@@ -41,6 +41,7 @@ function requireEmptyRecordDraft() {
   }
 }
 function show(view) {
+  if(window.atlasSuiteBeforeShow)window.atlasSuiteBeforeShow(view);
   window.scrollTo({top:0,left:0});
   currentView = view; document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== view);
   document.querySelectorAll('nav button').forEach(b => { b.classList.toggle('selected', b.dataset.view === view); if (b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
@@ -48,6 +49,8 @@ function show(view) {
   if (view === 'report') renderExportSelection();
   if(window.atlasOperatorShow)window.atlasOperatorShow(view);
   if(window.atlasInvestigationShow)window.atlasInvestigationShow(view);
+  if(window.atlasRetestShow)window.atlasRetestShow(view);
+  if(window.atlasSuiteAfterShow)window.atlasSuiteAfterShow(view);
 }
 async function refreshList(selected) {
   const workspaces = await api('workspaces'); clear('workspace').append(new Option('Choose a workspace',''));
@@ -82,6 +85,8 @@ function render() {
   if(window.atlasConsoleRefresh)window.atlasConsoleRefresh();
   if(window.atlasInvestigationRefresh)window.atlasInvestigationRefresh();
   if(window.atlasDesktopRefresh)window.atlasDesktopRefresh();
+  if(window.atlasRetestRefresh)window.atlasRetestRefresh();
+  if(window.atlasSuiteRefresh)window.atlasSuiteRefresh();
 }
 function options(id, nodes, emptyText) { const select=clear(id); if(emptyText) select.append(new Option(emptyText,'')); for(const n of nodes) select.append(new Option(n.label + ' · ' + n.kind,n.id)); }
 function populateFilters() {
@@ -182,6 +187,10 @@ function renderFindings() {
       }
     }
     if (f.review_notes) card.append(el('p',f.review_notes,'subline'));
+    card.append(button('Schedule retest',()=>{
+      if(!window.atlasRetestFromFinding)throw new Error('Retest tools are still loading. Try again in a moment.');
+      return window.atlasRetestFromFinding(type==='manual'?'records':'findings',f.id);
+    }));
     $('finding-list').append(card);
   }
   if (!matches.length) $('finding-list').append(el('div',entries.length ? 'No findings match these filters. Clear filters to see the full assessment.' : 'No findings yet. Add a manual finding, scan reviewed software or import results to begin.','empty'));
@@ -223,7 +232,7 @@ $('record-form').addEventListener('submit',e=>{e.preventDefault();if(recordSavin
 $('import-form').addEventListener('input',()=>{pending=null;clear('import-preview');});
 $('import-form').addEventListener('submit',e=>{e.preventDefault();run(async()=>{needsWorkspace();const file=$('import-file').files[0];if(!file)throw new Error('Choose a result file.');if(file.size>8*1024*1024)throw new Error('File exceeds the 8 MiB limit.');const content=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await file.arrayBuffer());pending={workspace:state.id,filename:file.name,content,source:$('import-source').value,context:{vantage:$('import-vantage').value,namespace:$('import-namespace').value,collected_at:$('import-time').value,source_version:$('import-version').value}};const result=await api('preview',pending);clear('import-preview').append(el('h2','Preview: '+file.name),el('p',`${result.entities} entities · ${result.observations} observations · ${result.findings} findings`),el('p',result.warnings.join(' '),'muted'),el('pre',JSON.stringify(result.sample,null,2)),button('Save this import',async()=>{if(!pending)throw new Error('Preview the file again.');const result=await api('import',pending);state=result.workspace;pending=null;clear('import-preview');render();message(result.duplicate?'Identical import already saved; no duplicate observations added.':'Import saved. Inspect the map and review any identity suggestions.');},'primary'));message('Preview ready. No changes have been saved yet.');});});
 $('manual-template').addEventListener('click',()=>download(JSON.stringify({format:'atlas-evidence/1',source_version:'manual 1',entities:[{key:'router',label:'Synthetic router',kind:'device',addresses:['192.0.2.1']},{key:'peer',label:'Synthetic peer',kind:'device',addresses:['192.0.2.20']}],observations:[{subject:'router',target:'peer',kind:'local neighbor',status:'unknown',basis:'manual',value:{reason:'Replace with collected evidence and its limits'},collected_at:null}],findings:[]},null,2),'common-evidence.json','application/json'));
-$('preview-export').addEventListener('click',()=>run(async()=>{const w=await exportState();$('export-preview').textContent=JSON.stringify({manifest:w.export,inventory:w.nodes.slice(0,10),findings:w.findings.slice(0,10),evidence:w.observations.slice(0,10),sources:w.imports},null,2);message('Preview shows up to 10 items per section. Download includes all selected results.');}));
+$('preview-export').addEventListener('click',()=>run(async()=>{const w=await exportState();$('export-preview').textContent=JSON.stringify({manifest:w.export,inventory:w.nodes.slice(0,10),findings:w.findings.slice(0,10),assessment_records:(w.records||[]).slice(0,10),investigations:(w.investigations||[]).slice(0,10),retests:(w.retests||[]).slice(0,10),evidence:w.observations.slice(0,10),sources:w.imports},null,2);message('Preview shows up to 10 items per section. Download includes all selected results.');}));
 $('download-json').addEventListener('click',()=>run(async()=>download(JSON.stringify(await exportState(),null,2),'assessment-results.json','application/json')));
 $('download-html').addEventListener('click',()=>run(async()=>{needsWorkspace();const response=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Nonce':nonce},body:JSON.stringify({workspace:state.id,format:'html',identifiers:$('export-identifiers').checked,...filters()})});if(!response.ok)throw new Error((await response.json()).error);download(await response.text(),'assessment-report.html','text/html');}));
 $('download-svg').addEventListener('click',()=>run(exportSvg));$('map-download').addEventListener('click',()=>{show('report');message('Review export selection and identifiers before downloading the map.');});

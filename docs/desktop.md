@@ -51,3 +51,12 @@ Closing the native window stops the listener and closes owned terminals, browser
 The shell rejects remote and file navigation and exposes no application Python API. Use Atlas's separately scoped embedded testing browser for target interaction. Qt runs with the Chromium sandbox; do not use sandbox-disable flags or launch as root. Downloads ask for an explicit destination. At-rest protection is provided by the OS account and disk encryption, with the existing export/redaction limits.
 
 See [execution context](execution-context.md), [investigations](investigations.md), [hosted server setup](hosted-console.md), and [ADR 0010](adr/0010-operator-host-desktop.md).
+
+
+## Reuse installed Qt 6 on Parrot
+
+The default Linux installer downloads the pinned native engine. If your distribution already supplies a complete Qt 6 WebEngine and QtPy for the current Python, explicitly run `sh packaging/install-linux.sh --system-qt` as your normal desktop user. This validates the installed stack before creating the runtime and reuses distribution packages through a dedicated per-user environment. Distribution updates then manage that engine. Qt 6 is selected explicitly when Qt 5 is also present; a missing stack produces an actionable error rather than silently using an incompatible engine.
+
+Use the same `--system-qt` profile when updating that runtime. This option is Linux-only and cannot be combined with `--core-only`. It changes neither VPN/routes nor system packages, display settings or trust stores. See [suite qualification](suite-verification.md) for the tested Parrot versions and [suite workflow](suite-workflow.md) for the Web & API path.
+
+The explicit system-Qt profile exposes distribution Python packages to this dedicated environment; it does not modify them. Atlas installs its pinned protocol/web dependencies into the per-user runtime. The default engine profile keeps normal virtual-environment isolation.

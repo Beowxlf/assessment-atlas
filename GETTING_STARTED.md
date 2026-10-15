@@ -1,19 +1,21 @@
-# Getting started with Assessment Atlas 0.6.1
+# Getting started with Assessment Atlas 0.10.0
 
-## Open the application
+## Install and open the application
 
-Extract the package into a folder you control. On Windows, double-click `Start.cmd`. Python 3.12 or newer is required; the launcher tries the Python launcher, Python on PATH, then the existing Codex Python runtime. On Linux/macOS run `sh start.sh`. Core import and HTTP/1.1 need no third-party Python packages. Native TLS/browser and HTTP/2/3/WebSocket features have optional dependencies described in [Setup](docs/web-tools.md). No external scanner is required.
+Download and extract the reviewed [release](https://github.com/Beowxlf/assessment-atlas/releases). Install on the machine running the lab VPN, as your regular desktop user. On Parrot/Kali/Ubuntu run `sh packaging/install-linux.sh`; when your distribution already provides complete Qt 6 WebEngine and QtPy, explicitly use `sh packaging/install-linux.sh --system-qt`. On Windows run `powershell -NoProfile -File packaging/install-windows.ps1`. Python 3.12+ is required. Launch **Assessment Atlas** from the application menu. Installation and data folders are separate; saved work survives runtime updates.
 
-The app opens at http://127.0.0.1:8765. Keep its terminal running. Ctrl+C closes it; restart to return to saved workspaces. If the port is occupied, run `python -m atlas.server --port 8766`. Only loopback is supported. Do not expose this server on a network.
+The top-left selector opens **Web & API**, **Evidence**, or **Reporting & Retest** over the same selected assessment. Start with [the complete Web & API workflow](docs/suite-workflow.md). The installed host supplies target execution and its reviewed network routes. The optional computation server never supplies your desktop VPN route. A saved authenticated role is metadata; establish a fresh session and review execution before testing.
+
+For source/browser mode, Windows `Start.cmd` or Linux `sh start.sh` opens the local app at http://127.0.0.1:8765. Keep that process running; Ctrl+C closes it. If the port is occupied, choose another with `python -m atlas.server --port 8766`. Keep the backend on loopback; use only the documented authenticated HTTPS hosting setup for remote browser access. See [desktop setup and updates](docs/desktop.md), [optional engines](docs/web-tools.md) and [qualification](docs/suite-verification.md).
 
 ## Complete an assessment workflow
 
 1. Create a workspace and record authorized targets, exclusions and handling limits. Offline import does not authorize live contact.
-2. Open **Discovery → Import discoveries** (or find Import scan results in Tools), select a file, and supply testing position, address-space context and missing collection time/version if known. Preview, review warnings, then save. Repeat for more sources.
-3. Open **Network map**. Select a node or connection to see normalized evidence, source location, collection/import times, original-file digest, and status/basis. Use source/type/claim filters, zoom and the scrollable canvas. Keyboard users can focus map elements and press Enter.
+2. Open **Evidence → Import results** (or find Import scan results with Ctrl/Command+K), select a file, and supply testing position, address-space context and missing collection time/version if known. Preview, review warnings, then save. Repeat for more sources.
+3. Open **Evidence → Relationships**. Select a node or connection to see normalized evidence, source location, collection/import times, original-file digest, and status/basis. Use source/type/claim filters, zoom and the scrollable canvas. Keyboard users can focus map elements and press Enter.
 4. Review identity suggestions. Names and IPs never merge automatically. Inspect both candidates, record evidence/rationale, then link compatible identities. Undo splits them again without discarding observations. Divergent values are retained; different times may explain the disagreement.
-5. Review source assertions in **Findings**. Add questions, tests/retests, access and manual findings in **Assessment activity**. Record evidence references and limitations; never credentials. Changing a review status does not independently validate a scanner result.
-6. Open **Reports & exports**. Preview the current map filter selection. By default identifiers and free text are withheld. Explicitly include them only for an authorized destination. Download structured JSON, a map SVG with embedded provenance metadata, or HTML that can be printed to PDF. Original files are never embedded. Inspect the downloaded material before sharing.
+5. Review source assertions in **Reporting & Retest → Finding review**. Add notes and manual records in **Evidence → Notes & activity**; use Investigations for durable questions and Schedule retest on a finding for the shared retest workflow. Record evidence references and limitations; never credentials. Changing a review status does not independently validate a scanner result.
+6. Open **Reporting & Retest → Reports & exports**. Preview the current map filter selection. By default identifiers and free text are withheld. Explicitly include them only for an authorized destination. Download structured JSON, a map SVG with embedded provenance metadata, or HTML that can be printed to PDF. Original files are never embedded. Inspect the downloaded material before sharing.
 
 The synthetic example is a safe way to explore all six input formats. Every result is invented, including apparent findings; no scan is run. Supported field details and common-format examples are in [Supported formats](docs/supported-formats.md).
 

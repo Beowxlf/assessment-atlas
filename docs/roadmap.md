@@ -80,3 +80,7 @@ The owner requested the next investigation milestone: correct host, VPN route an
 ## Implemented delivery step — operator-host desktop (0.9.0)
 
 Per-user desktop runtime/installation, local VPN execution boundary, optional software-only cache-analysis companion and manual stable-release checks are implemented. Exact platform acceptance is in [desktop verification](desktop-verification.md), and installation is in [desktop setup](desktop.md). Remaining work: signed bundled native installers, reviewed server-to-local assessment migration/synchronization, broader native platform acceptance and larger asynchronous computation jobs. Remote host execution is not silently substituted when a VPN is absent.
+
+## Implemented delivery step — suite shell and shared retests (0.10.0)
+
+The top-left app selector now exposes Web & API, Evidence and Reporting & Retest over one assessment. Finding-to-retest handoff, frozen baselines, fresh linked investigations, separate new evidence/operator conclusions and shared exports are implemented. See [suite workflow](suite-workflow.md) and [suite verification](suite-verification.md). Future apps need complete workflows and acceptance before appearing as working choices; AD/cloud apps, multi-user tenancy, assessment synchronization and automatic remediation verification are not included.

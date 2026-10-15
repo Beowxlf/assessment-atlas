@@ -6,6 +6,7 @@ in this process and therefore use this host's reviewed routes and VPN.
 """
 import argparse
 import importlib
+import importlib.util
 import os
 from pathlib import Path
 import platform
@@ -274,6 +275,22 @@ def desktop_engine():
         flags = (os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS', '') + ' ' + os.environ.get('CHROMIUM_FLAGS', '')).lower()
         if unsafe or '--no-sandbox' in flags or '--disable-setuid-sandbox' in flags:
             raise DesktopProblem('Remove Chromium sandbox-disable settings before starting the desktop application.')
+        # Distro installs can contain Qt 5 alongside Qt 6. QtPy otherwise
+        # prefers Qt 5, whose navigation/download API cannot enforce our shell.
+        configured = os.environ.get('QT_API', '').lower()
+        if configured not in ('', 'pyside6', 'pyqt6'):
+            raise DesktopProblem('The native shell requires Qt 6. Remove the QT_API override or select pyside6/pyqt6.')
+        choices = (('pyside6', 'PySide6'), ('pyqt6', 'PyQt6'))
+        for api, module in choices:
+            try:
+                available = importlib.util.find_spec(module + '.QtWebEngineWidgets') is not None
+            except (ImportError, ModuleNotFoundError):
+                available = False
+            if (not configured or configured == api) and available:
+                os.environ['QT_API'] = api
+                break
+        else:
+            raise DesktopProblem('Qt 6 is unavailable. Run the desktop installer, or use --browser for the local interface.')
         return 'qt'
     raise DesktopProblem('The native desktop shell currently supports Linux and Windows. Use --browser for the local interface on this platform.')
 
@@ -314,6 +331,14 @@ def open_desktop(runtime):
         if not inspected.wait(15) or not guarded.is_set():
             if not failure:
                 failure.append('The native window did not finish its protected startup. Use --browser or repair the desktop engine.')
+            window.destroy()
+            return
+        # pywebview injects its own window helpers asynchronously after the
+        # initial blank document loads. Navigating immediately can inject those
+        # helpers into the next document before its body exists. Finish that
+        # protected blank startup before loading the assessment application.
+        if not window.events.loaded.wait(15):
+            failure.append('The native window did not finish loading its protected blank page. Repair the desktop engine, or use --browser.')
             window.destroy()
             return
         window.load_url(runtime.url)

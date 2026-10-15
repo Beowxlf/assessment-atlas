@@ -93,3 +93,7 @@ Exports must preserve typed edges and provenance references plus time/vantage, u
 ## Operator-host desktop — 0.9.0
 
 The desktop runtime owns an ephemeral loopback listener, native interface and local collectors/SQLite on the operator host. Target traffic follows that host's reviewed routes; the optional server receives only explicitly reviewed software identities for bounded cached advisory matching. Source results remain inferred evidence, with a manual finding handoff. No workspace synchronization or remote target-execution fallback is introduced. See [ADR 0010](adr/0010-operator-host-desktop.md).
+
+## Workflow suite and shared retests (0.10.0)
+
+The top-left suite shell maps fixed view IDs to Web & API, Evidence and Reporting & Retest without duplicating the assessment store or executing actions. Per-assessment return destinations and unsaved retest edits remain in tab memory. `atlas.retests` owns additive version1 retest metadata, immutable source snapshots, new evidence, revision/idempotency checks and inert linked-investigation preparation. Native test completeness is projected from authoritative investigations/runs. JSON/HTML reports apply existing filtering/redaction to the new fields. [ADR 0011](adr/0011-suite-shell-shared-retests.md) records boundaries; [suite verification](suite-verification.md) records actual acceptance.

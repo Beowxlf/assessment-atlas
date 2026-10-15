@@ -42,3 +42,7 @@ Limits are 200 investigations per assessment, 100 linked runs and 200 linked obs
 [Backend tests](../tests/test_investigations.py) exercise persistence, old data, concurrent/stale edits, reference ownership, safe snapshots, atomic linkage, handoff idempotency and exports. [API checks](../tests/test_investigations_api.py) terminate and restart real hosted processes around a synthetic authenticated audit. [Edge checks](../tests/investigation-ui.cjs) exercise the visible workflow, autosave, delayed updates, conflicts, finding navigation and narrow-screen layout.
 
 See [verification](verification.md) and the exact release receipt for executed environments/results. These are synthetic functional checks, not an HTB VPN assessment, independent security review or operator usability benchmark. The broader [product roadmap](product-vision-and-roadmap.md) remains proposed beyond this first slice.
+
+## Shared retesting (0.10.0)
+
+Findings can schedule a retest in Reporting & Retest. Preparation creates or reuses one linked Web & API investigation with no saved execution context or restored authentication. Review/save the current host/interface and establish a fresh session before testing. Original findings and baselines remain unchanged while the retest records new evidence and an operator conclusion. See [suite workflow](suite-workflow.md).

@@ -45,6 +45,7 @@ function operatorRecentView() {
 }
 function operatorArrangeNavigation(){
   if(!operatorInitialized)return;
+  if(window.atlasSuiteArrange){window.atlasSuiteArrange();return;}
   const nav=document.querySelector('nav');const more=$('extra-views');
   const titles={overview:'Workspace',investigations:'Investigations',discovery:'Discovery',tools:'Tools',findings:'Findings',evidence:'Evidence',report:'Reports'};
   for(const [view,title] of Object.entries(titles)){let b=nav.querySelector('[data-view="'+view+'"]');if(!b){b=button(title,()=>operatorOpen({view}));b.dataset.view=view;}b.textContent=title;nav.insertBefore(b,more);}

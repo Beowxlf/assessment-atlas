@@ -20,7 +20,7 @@ from atlas.importers import parse
 
 root = pathlib.Path(atlas.__file__).parent
 assert root.resolve().is_relative_to(pathlib.Path(__import__('sys').prefix).resolve()), root
-for name in ('index.html', 'app.js', 'desktop-tools.js', 'styles.css', 'operator-console.html', 'investigations.js', 'web-tools.js', 'vendor/xterm.js', 'vendor/xterm-LICENSE.txt'):
+for name in ('index.html', 'app.js', 'desktop-tools.js', 'styles.css', 'operator-console.html', 'investigations.js', 'web-tools.js', 'suite-shell.js', 'suite-shell.css', 'retests.js', 'retests.html', 'retests.css', 'vendor/xterm.js', 'vendor/xterm-LICENSE.txt'):
     assert (root / 'static' / name).is_file(), name
 assert (root / 'browser_session.cjs').is_file()
 for name in ('nmap.xml', 'device.json', 'scan.nessus', 'nuclei.jsonl', 'httpx.jsonl', 'manual.json'):
@@ -38,7 +38,7 @@ origin = 'http://127.0.0.1:' + str(server.server_address[1])
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 try:
     assert b'Assessment Atlas' in opener.open(origin + '/', timeout=10).read()
-    for name in ('/app.js', '/desktop-tools.js', '/operator-console.js', '/vendor/xterm.js', '/investigations.html'):
+    for name in ('/app.js', '/desktop-tools.js', '/operator-console.js', '/vendor/xterm.js', '/investigations.html', '/suite-shell.js', '/suite-shell.css', '/retests.js', '/retests.html', '/retests.css'):
         assert len(opener.open(origin + name, timeout=10).read()) > 50, name
     session = json.load(opener.open(origin + '/api/session', timeout=10))
     companion = json.load(opener.open(origin + '/api/companion/status', timeout=10))
@@ -47,6 +47,12 @@ try:
     workspace = json.load(opener.open(request, timeout=10))
     saved = json.load(opener.open(origin + '/api/workspace?id=' + workspace['id'], timeout=10))
     assert len(saved['imports']) == 6 and saved['observations']
+    assert saved['retests_version'] == 1 and saved['retests'] == []
+    data = {'workspace': saved['id'], 'original_collection': 'findings', 'original_id': saved['findings'][0]['id'],
+            'request_id': __import__('uuid').uuid4().hex, 'question': 'Does this synthetic finding remain?'}
+    request = urllib.request.Request(origin + '/api/retest/save', data=json.dumps(data).encode(), headers={'Content-Type':'application/json', 'Origin':origin, 'X-Atlas-Nonce':session['nonce']})
+    retested = json.load(opener.open(request, timeout=10))
+    assert len(retested['retests']) == 1 and retested['retests'][0]['original_snapshot']
     print(json.dumps({'installed_version':atlas.__version__, 'synthetic_imports':len(saved['imports']), 'observations':len(saved['observations']), 'local_http_assets':True, 'isolated_install':True}))
 finally:
     server.shutdown(); server.server_close(); thread.join(10)

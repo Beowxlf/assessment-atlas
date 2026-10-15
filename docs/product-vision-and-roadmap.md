@@ -193,3 +193,7 @@ The current SQLite-backed workspace does not justify a stack rewrite from this s
 The hosted service currently assumes one trusted operator, and its shell can access files available to the app user. Adding accounts would not establish tenant or execution isolation. Collaboration requires a separate security milestone. Offline import stays useful and inert; imported text and reusable recipes cannot become executable instructions automatically.
 
 Defer broad competitor parity, a universal tool marketplace, opaque opportunity scores, autonomous exploitation and decorative attack graphs. Add an external bridge or extension only for a demonstrated capture or browser limitation. The next investment should make an ordinary assessment easier to continue and finish, with evidence that survives the journey.
+
+## Delivery update — suite shell and Web & API (0.10.0)
+
+The owner selected the suite direction. Web & API is the first working app, with Evidence and Reporting & Retest as shared work surfaces. The selector preserves one assessment; retests retain the original finding and baseline while recording fresh evidence and bounded operator interpretation. [Workflow](suite-workflow.md) and [verification](suite-verification.md) distinguish implementation from acceptance. AD/cloud and other apps remain sequenced future workflows.

@@ -1,0 +1,29 @@
+<section id="retests" class="view" hidden>
+  <div class="page-heading"><div><p class="eyebrow">KEEP THE ORIGINAL. RECORD WHAT CHANGED.</p><h1>Retesting</h1><p>Revisit a finding in a fresh execution context. Retest conclusions are operator assessments, with the original evidence preserved.</p></div><button id="retest-new" type="button" class="primary">New retest</button></div>
+  <p id="retest-empty" class="empty">Choose an assessment to begin.</p>
+  <div id="retest-workspace" class="retest-workspace" hidden>
+    <aside class="card retest-index"><label>Find a retest<input id="retest-search" type="search" placeholder="Finding, question or outcome"></label><div id="retest-list"></div></aside>
+    <div class="retest-main">
+      <article class="card"><div class="retest-heading"><h2 id="retest-heading">Plan a retest</h2><span id="retest-save-state" role="status" aria-live="polite">Unsaved draft</span></div>
+        <form id="retest-form">
+          <label>Original finding<select id="retest-original" required><option value="">Choose a finding</option></select></label>
+          <p class="muted">Source assertions retain their original validation level. A retest never overwrites their status or evidence.</p>
+          <label>Retest question<input id="retest-question" required maxlength="240" placeholder="What would establish whether the original issue remains?"></label>
+          <div class="retest-fields"><label>Work status<select id="retest-status"><option value="open">Open</option><option value="in progress">In progress</option><option value="complete">Complete</option></select></label><label>Operator conclusion<select id="retest-outcome"><option value="unknown">Not assessed</option><option value="inconclusive">Inconclusive</option><option value="still present">Reported still present (operator assessed)</option><option value="resolved">Reported resolved (operator assessed)</option></select></label></div>
+          <label>Interpretation, tested context and coverage limits<textarea id="retest-rationale" maxlength="8000" placeholder="Explain what the new evidence establishes, what remains uncertain, and the identity and role tested."></textarea></label>
+          <label>Next useful action<textarea id="retest-next_action" maxlength="2000" placeholder="A discriminating test, missing prerequisite or next review."></textarea></label>
+          <p class="muted">Reported resolution and still-present conclusions require new supporting observed evidence for the original occurrence. A failed, interrupted or partial test cannot establish resolution.</p>
+          <div class="button-row"><button id="retest-save" class="primary">Save retest</button><button id="retest-prepare" type="button">Prepare retest investigation</button><button id="retest-compare" type="button" hidden>Compare saved version</button><button id="retest-reload" type="button" hidden>Discard local edits and reload saved retest</button></div>
+          <p class="muted">Preparation saves first and opens an investigation. Review the target, host and route, then re-establish authentication before starting a test. Preparation sends no target requests.</p>
+        </form>
+      </article>
+      <article class="card"><div class="retest-heading"><h2>Original finding and baseline</h2><button id="retest-inspect-original" type="button">Inspect original finding</button></div><div id="retest-original-summary"></div><div id="retest-baseline"></div></article>
+      <article class="card"><div class="retest-heading"><h2>New evidence and test completeness</h2><button id="retest-refresh" type="button">Refresh collected results</button></div>
+        <div class="retest-fields"><label>Assessment observation<select id="retest-observation"><option value="">Choose an observation</option></select></label><label>Relationship to the retest<select id="retest-relation"><option value="supporting">Supporting</option><option value="contradicting">Contradicting</option><option value="context">Context</option></select></label></div>
+        <div class="button-row"><button id="retest-inspect-evidence" type="button">Inspect selected observation</button><button id="retest-add-evidence" type="button">Add to retest draft</button></div><p class="muted">Adding evidence changes this draft. Save to retain the relationship. Supporting evidence remains a claim to review, not automatic validation.</p>
+        <div id="retest-evidence"></div><div id="retest-tests"></div><div id="retest-investigation"></div>
+      </article>
+      <details class="card"><summary>Retest history</summary><div id="retest-history"></div></details>
+    </div>
+  </div>
+</section>

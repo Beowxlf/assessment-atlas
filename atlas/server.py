@@ -110,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass  # Do not place filenames, targets or imported content in terminal logs.
 
-    def respond(self, data, status=200, mime="application/json", cookie=False, attachment=None):
+    def respond(self, data, status=200, mime="application/json", cookie=False, attachment=None, style_nonce=None):
         if mime == "application/json":
             data = json.dumps(data, ensure_ascii=False).encode("utf-8")
         elif isinstance(data, str):
@@ -122,7 +122,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+        styles = "style-src 'self'" + (" 'nonce-" + style_nonce + "'" if style_nonce else '')
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; " + styles + "; img-src 'self' blob: data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
         if cookie:
             self.send_header("Set-Cookie", cookie if isinstance(cookie,str) else f"atlas_session={self.server.session}; Path=/; HttpOnly; SameSite=Strict")
         if self.server.hosted:self.send_header('Strict-Transport-Security','max-age=31536000')
@@ -176,11 +177,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
         if path in ('/investigations.js', '/investigations.html'):
             return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/html')
+        if path in ('/retests.js', '/retests.html', '/retests.css', '/suite-shell.js', '/suite-shell.css'):
+            return self.respond((STATIC / path[1:]).read_bytes(), mime='text/javascript' if path.endswith('.js') else 'text/css' if path.endswith('.css') else 'text/html')
         if path == '/desktop-tools.js':
             return self.respond((STATIC / 'desktop-tools.js').read_bytes(), mime='text/javascript')
         if path in ("/", "/app.js", "/web-tools.js", "/web-tools.html", "/styles.css"):
             file = STATIC / {"/": "index.html", "/app.js": "app.js", "/web-tools.js":"web-tools.js", "/web-tools.html":"web-tools.html", "/styles.css": "styles.css"}[path]
             mime = {"/": "text/html", "/app.js": "text/javascript", "/web-tools.js":"text/javascript", "/web-tools.html":"text/html", "/styles.css": "text/css"}[path]
+            if path == '/':
+                # This is document-local style authority, unrelated to the
+                # operator session/CSRF nonce. Only the terminal's scoped
+                # document adapter uses it; ordinary inline content stays denied.
+                style_nonce = secrets.token_urlsafe(24)
+                document = file.read_text(encoding='utf-8').replace('__ATLAS_STYLE_NONCE__', style_nonce)
+                return self.respond(document, mime=mime, cookie=not self.server.hosted, style_nonce=style_nonce)
             return self.respond(file.read_bytes(), mime=mime, cookie=path == "/" and not self.server.hosted)
         if not self.authenticated():
             return self.respond({"error": "Open the local application first."}, 403)
@@ -298,6 +308,15 @@ class Handler(BaseHTTPRequestHandler):
                 action = actions.get(path)
                 if not action:
                     return self.respond({'error': 'Unknown investigation action.'}, 404)
+                return self.respond(action(workspace, data))
+            if path.startswith('/api/retest/'):
+                if not isinstance(workspace, str):
+                    raise ImportProblem('Choose a workspace identifier.')
+                action = {'/api/retest/save': store.save_retest,
+                          '/api/retest/evidence': store.link_retest_evidence,
+                          '/api/retest/prepare': store.prepare_retest}.get(path)
+                if not action:
+                    return self.respond({'error': 'Unknown retest action.'}, 404)
                 return self.respond(action(workspace, data))
             if path=='/api/logout' and self.server.hosted:
                 owner=self.owner();self.server.terminals.close_owner(owner)

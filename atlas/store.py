@@ -11,7 +11,7 @@ import threading
 import uuid
 
 from .importers import ImportProblem, clean, parse, VERSION
-from . import investigations
+from . import investigations, retests
 
 
 def now():
@@ -48,6 +48,7 @@ class Store:
             # Interrupted live jobs are not silently resumed after a server restart.
             for key,body in con.execute('SELECT id,body FROM workspaces').fetchall():
                 w=json.loads(body);changed=investigations.ensure(w)
+                changed=retests.ensure(w) or changed
                 for run in w.get('web_runs',[]):
                     if run['state'] in ('queued','running'):
                         run.update(state='interrupted',ended_at=now(),reason='Application restarted; retained partial evidence.');changed=True
@@ -86,7 +87,7 @@ class Store:
             w = {"id": uid(), "name": required_text(name, "Name", 120), "scope": clean(scope)[:4000],
                  "created_at": now(), "schema": "atlas-workspace/1", "imports": [], "entities": [],
                  "observations": [], "findings": [], "records": [], "decisions": [], "history": [],
-                 "investigations_version": 1, "investigations": []}
+                 "investigations_version": 1, "investigations": [], "retests_version": 1, "retests": []}
             self._save(w)
             return w
 
@@ -211,6 +212,26 @@ class Store:
     def investigation_resume(self, workspace, data):
         with self.lock:
             return investigations.resume_preparation(self.get(workspace), data)
+
+    def _retest_mutation(self, workspace, data, operation, preparing=False):
+        with self.lock:
+            w = self.get(workspace)
+            item = operation(w, data)
+            self._save(w)
+            result = self.view(w)
+            result['retest_result_id'] = item['id']
+            if preparing:
+                result['retest_preparation'] = retests.preparation(w, item)
+            return result
+
+    def save_retest(self, workspace, data):
+        return self._retest_mutation(workspace, data, retests.save)
+
+    def link_retest_evidence(self, workspace, data):
+        return self._retest_mutation(workspace, data, retests.link_evidence)
+
+    def prepare_retest(self, workspace, data):
+        return self._retest_mutation(workspace, data, retests.prepare, preparing=True)
 
     def capture_selection(self,workspace,data,context=None):
         """An operator-selected excerpt attached to a reviewed existing identity."""
@@ -348,6 +369,7 @@ class Store:
                     for key in ('state', 'ended_at', 'requests', 'skipped', 'findings', 'completeness', 'authentication', 'reason'):
                         if key in latest:
                             test['snapshot'][key] = latest[key]
+        retests.project(result)
         parents = {e["id"]: e["id"] for e in w["entities"]}
         def find(e):
             while parents[e] != e:
@@ -415,12 +437,14 @@ class Store:
         conflict_ids = {oid for c in w["conflicts"] for oid in c["observations"]}
         w["context_observations"] = [o for o in all_observations if o["id"] in conflict_ids and o["id"] not in selected_ids]
         investigations.export_filter(w, keep, selected_ids | {o['id'] for o in w['context_observations']})
+        retests.export_filter(w, selected_ids | {o['id'] for o in w['context_observations']})
         w["export"] = {"format": "atlas-results/1", "at": now(), "identifiers_included": identifiers,
                        "selection": {"kind": kind or "all", "status": claim or "all", "import_id": import_id or "all"},
                        "limitations": "Source assertions, not independently validated impact. Graph paths are not tested reachability. Imported originals held by operator; native raw messages are transient with bounded/redacted excerpts. Collection gaps and history remain in observations.",
                        "redactions": [] if identifiers else ["entity labels and addresses", "source filenames, supplied versions and testing position", "evidence values and free text", "workspace name and scope"]}
         if not identifiers:
             investigations.redact(w)
+            retests.redact(w)
             for run in w.get('web_runs',[]):
                 run['plan']='[withheld]';run['errors']=['[withheld]' for _ in run.get('errors',[])];run['reason']='[withheld]'
                 for field in ('route','execution_context'):
@@ -466,6 +490,7 @@ def html_report(w):
     body += table("Findings (source assertions)", w["findings"], ["subject", "title", "severity", "validation", "status", "description", "import_id", "location"])
     body += table("Assessment activity", w["records"], ["kind", "title", "status", "subject", "details", "evidence_refs", "at"])
     body += table("Investigations and decisions", w.get('investigations', []), ['id', 'question', 'objective', 'subject', 'status', 'decision', 'rationale', 'next_action', 'access_mode', 'access_role', 'access_reference', 'execution_context', 'evidence_refs', 'tests', 'finding_record_id', 'next_investigation_ids', 'revision'])
+    body += table("Retests (operator assessments; original findings unchanged)", w.get('retests', []), ['id', 'original_collection', 'original_id', 'original_snapshot', 'baseline_refs', 'question', 'status', 'outcome_label', 'rationale', 'next_action', 'evidence_refs', 'investigation_id', 'tests', 'revision', 'proof_limits'])
     body += table("Native scans and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','software_identities','message_count','websocket_messages','interactions','findings','oob_interactions','oob_import_ids','skipped','plan','coverage','public_snapshots','errors','reason','import_ids'])
     body += table("Evidence and typed relationships", w["observations"], ["id", "subject", "target", "kind", "status", "basis", "value", "collected_at", "vantage", "import_id", "location"])
     body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "intake_mode", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])
