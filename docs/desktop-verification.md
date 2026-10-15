@@ -1,3 +1,5 @@
+Current native Parrot acceptance is in [suite verification 0.10.0](suite-verification.md). The results below preserve the earlier 0.9.0 state; its Linux GUI gap has since been closed for the tested system-Qt/offline profile.
+
 # Desktop verification — 0.9.0
 
 The desktop and companion use synthetic fixtures; prior real HTB data remains outside the source repository. Code qualification used `4faf8a81210a13434ffb5bc761f8bc4eee5c986d`; later release documentation does not change those runtime bytes.

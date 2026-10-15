@@ -1,3 +1,5 @@
+Current suite, shared retest and native Parrot qualification is in [suite verification 0.10.0](suite-verification.md). Older release-specific results below remain historical evidence.
+
 # Verification and delivery limits — historical 0.2.0 baseline
 
 ## Dependable execution context — 0.8.0

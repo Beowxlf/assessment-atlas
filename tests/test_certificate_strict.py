@@ -34,7 +34,7 @@ class StrictCertificates(unittest.TestCase):
         self.assertTrue(context.check_hostname)
         return context
 
-    def exchange(self, server_context, client_context, server_name):
+    def exchange(self, server_context, client_context, server_name, rejecting=False):
         """One owned loopback handshake, including server thread completion."""
         listener = socket.socket()
         listener.bind(('127.0.0.1', 0))
@@ -47,8 +47,11 @@ class StrictCertificates(unittest.TestCase):
                 raw.settimeout(5)
                 with server_context.wrap_socket(raw, server_side=True) as connection:
                     connection.sendall(b'SYNTHETIC_STRICT_TLS')
-            except ssl.SSLError:
-                pass  # A rejecting client deliberately sends a fatal TLS alert.
+            except (ssl.SSLError, ConnectionResetError) as error:
+                # A rejecting client may send a TLS alert or reset the peer on
+                # Windows. Successful exchanges must still have no peer error.
+                if not rejecting:
+                    errors.append(error)
             except Exception as error:
                 errors.append(error)
         thread = threading.Thread(target=serve, daemon=True)
@@ -89,7 +92,7 @@ class StrictCertificates(unittest.TestCase):
                               leaf.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value)
                 self.assertEqual(list(self.folder.iterdir()), [], 'Issued leaf private keys must be removed after SSLContext loading')
         with self.assertRaises(ssl.SSLCertVerificationError):
-            self.exchange(self.certificates.context('localhost', self.folder), self.strict_client(), 'other-host.invalid')
+            self.exchange(self.certificates.context('localhost', self.folder), self.strict_client(), 'other-host.invalid', rejecting=True)
 
     def test_strict_policy_still_rejects_a_signed_leaf_missing_authority_key_identifier(self):
         x509 = self.certificates.x509
@@ -121,7 +124,7 @@ class StrictCertificates(unittest.TestCase):
         finally:
             path.unlink(missing_ok=True)
         with self.assertRaises(ssl.SSLCertVerificationError) as rejected:
-            self.exchange(context, self.strict_client(), 'localhost')
+            self.exchange(context, self.strict_client(), 'localhost', rejecting=True)
         self.assertIn('authority key identifier', rejected.exception.verify_message.lower())
         self.assertEqual(list(self.folder.iterdir()), [])
 
