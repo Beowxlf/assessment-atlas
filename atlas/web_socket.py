@@ -160,9 +160,12 @@ class WebSocketSession:
         if not isinstance(value,str) or len(value)>90000:raise ImportProblem('Supply a bounded text or Base64 message.')
         try:data=base64.b64decode(value,validate=True) if binary else value
         except ValueError:raise ImportProblem('Invalid Base64 message.') from None
-        with self.lock:
-            if self.closed or self.count>=self.limit:raise ImportProblem('WebSocket is closed or at its limit.')
-            self.client.send(data,binary);self.capture('to server',data,binary)
+        try:
+            with self.lock:
+                if self.closed or self.count>=self.limit:raise ImportProblem('WebSocket is closed or at its limit.')
+                self.client.send(data,binary);self.capture('to server',data,binary)
+        except ExecutionChanged as exc:
+            self.error=str(exc);self.close('Execution context lost; incomplete coverage');raise
         return self.status()
     def _read(self):
         try:

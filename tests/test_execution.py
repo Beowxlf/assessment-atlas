@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import socket
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import Mock, patch
@@ -197,6 +198,26 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(argv[argv.index('-e')+1],'tun0')
         curl=command({**nmap,'profile':'http-headers','url':'https://192.0.2.20/'},'fixture.txt','10.10.14.2')
         self.assertEqual(curl[curl.index('--interface')+1],'if!tun0')
+
+    def test_websocket_send_context_loss_immediately_closes_partial_and_preserves_evidence(self):
+        from atlas.web_socket import WebSocketSession
+        tools=WebTools(self.store,8765)
+        artifact=self.store.import_file(self.workspace,json.dumps({'format':'atlas-evidence/1',
+            'entities':[{'key':'fixture','label':'Synthetic socket peer'}],
+            'observations':[{'subject':'fixture','kind':'Prior socket evidence','status':'observed','basis':'manual','value':'Synthetic retained observation'}]}),
+            'synthetic-socket-evidence.json','atlas',{})['import']['id']
+        run=self.store.start_web_run(self.workspace,'websocket',{})
+        self.store.update_web_run(self.workspace,run['id'],state='running',import_ids=[artifact],requests=1)
+        session=WebSocketSession.__new__(WebSocketSession)
+        session.tools=tools;session.workspace=self.workspace;session.run=run;session.lock=threading.RLock()
+        session.closed=False;session.count=1;session.limit=10;session.message_count=1;session.auth=None;session.config={}
+        session.messages=[];session.saved_messages={};session.error=None;session.client=Mock()
+        session.client.send.side_effect=ExecutionChanged('Synthetic execution host changed; no fallback.')
+        with self.assertRaises(ExecutionChanged):session.send('Synthetic frame')
+        retained=next(row for row in self.store.web_runs(self.workspace) if row['id']==run['id'])
+        self.assertTrue(session.closed);session.client.close.assert_called_once()
+        self.assertEqual(retained['state'],'partial');self.assertEqual(retained['import_ids'],[artifact])
+        self.assertIn('incomplete',retained['reason']);self.assertEqual(len(self.store.get(self.workspace)['observations']),1)
 
 
 if __name__=='__main__':unittest.main()
