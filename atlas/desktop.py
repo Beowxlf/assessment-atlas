@@ -337,7 +337,10 @@ def open_desktop(runtime):
         # initial blank document loads. Navigating immediately can inject those
         # helpers into the next document before its body exists. Finish that
         # protected blank startup before loading the assessment application.
-        if not window.events.loaded.wait(15):
+        # WebView2 does not emit pywebview's loaded event for its initial
+        # about:blank document. Qt needs this ordering; Edge's navigation guard
+        # already owns the transition without waiting for that absent event.
+        if engine == 'qt' and not window.events.loaded.wait(15):
             failure.append('The native window did not finish loading its protected blank page. Repair the desktop engine, or use --browser.')
             window.destroy()
             return
