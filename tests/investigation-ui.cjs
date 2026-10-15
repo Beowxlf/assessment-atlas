@@ -71,14 +71,65 @@ let stage='setup',browser,target,page;
   await page.locator('#close-detail').click();await page.locator('#investigation-reload-saved').click();
   await page.waitForFunction(()=>document.getElementById('investigation-rationale').value==='Saved interpretation from a second synthetic tab.');
 
-  stage='prepare and deliberately run authenticated baseline';await page.locator('#investigation-prepare').click();
-  await page.locator('#web-url').waitFor({state:'visible'});assert.equal(await page.locator('#web-authorized').isChecked(),false);
+  stage='first workbench transition clears an existing authenticated context before asynchronous refresh';
+  await go(page,'web');await page.evaluate(()=>webRefresh(true));
+  await page.locator('#web-url').fill(url+'/private/record');await page.locator('#web-authorized').check();
+  if(await page.locator('#web-auth-toggle').getAttribute('aria-expanded')==='false')await page.locator('#web-auth-toggle').click();
+  await page.locator('#web-auth-check').fill(url+'/guard');await page.locator('#web-auth-marker').fill(marker);
+  const priorCredentials=page.locator('details').filter({has:page.locator('#web-auth-headers')});
+  if(!await priorCredentials.evaluate(element=>element.open))await priorCredentials.locator('summary').click();
+  await page.locator('#web-auth-headers').fill('Cookie: session='+cookie);await page.locator('#web-session-save').click();
+  await page.locator('#web-session-result').filter({hasText:'Session kept'}).waitFor();
+  const previousSession=await page.locator('#web-session').inputValue();assert(previousSession);
+  await page.locator('#web-auth-headers').fill('Cookie: old-draft=synthetic-previous-context');
+  await page.locator('#web-auth-steps').fill('[{"url":"'+url+'/unused-prior-login","method":"GET"}]');
+  await page.locator('[data-web-tab="request"]').click();
+  await page.locator('#web-headers').fill('Authorization: Bearer synthetic-previous-request-context');
+  await page.locator('#web-body').fill('synthetic prior request body');
+  await page.locator('[data-web-tab="scanner"]').click();
+  assert.equal(await page.locator('#web-authorized').isChecked(),true);
+  assert.equal(await page.locator('#web-session').inputValue(),previousSession);
+  assert.equal(seen.length,0,'Keeping a session draft must not contact the fixture');
+  await go(page,'investigations');await select(first);await page.evaluate(()=>webPollDone);
+  assert.equal(await page.locator('#web-pane-scanner').getAttribute('hidden'),null,'Prior scanner panel must remain selected to expose the timing regression');
+  let releaseRefresh,heldRefresh;const refreshGate=new Promise(resolve=>releaseRefresh=resolve);
+  const refreshHeld=new Promise(resolve=>heldRefresh=resolve);
+  await page.route('**/api/web/status?*',async route=>{const response=await route.fetch();heldRefresh();await refreshGate;await route.fulfill({response});});
+  await page.evaluate(()=>{
+    window.investigationFirstTransition=null;
+    const workbench=document.getElementById('web');
+    window.investigationTransitionObserver=new MutationObserver(()=>{
+      if(workbench.hidden||window.investigationFirstTransition)return;
+      const value=id=>document.getElementById(id).value;
+      window.investigationFirstTransition={session:value('web-session'),authorized:document.getElementById('web-authorized').checked,
+        headers:value('web-headers'),body:value('web-body'),authHeaders:value('web-auth-headers'),authSteps:value('web-auth-steps'),
+        scannerSelected:!document.getElementById('web-pane-scanner').hidden};
+    });
+    window.investigationTransitionObserver.observe(workbench,{attributes:true,attributeFilter:['hidden']});
+  });
+  try{
+    await page.locator('#investigation-prepare').click();
+    await page.locator('#web-pane-scanner').waitFor({state:'visible'});await refreshHeld;
+    await page.waitForFunction(()=>window.investigationFirstTransition!==null);
+    assert.deepEqual(await page.evaluate(()=>window.investigationFirstTransition),
+      {session:'',authorized:false,headers:'',body:'',authHeaders:'',authSteps:'',scannerSelected:true},
+      'First visible workbench state must already be cleared while its status refresh is still blocked');
+    assert.equal(seen.length,0,'Preparing the investigation must not send target traffic');
+  }finally{
+    releaseRefresh();await page.unrouteAll({behavior:'wait'});
+    await page.evaluate(()=>window.investigationTransitionObserver.disconnect());
+  }
+  await page.locator('#web-investigation-context').waitFor({state:'visible'});
+  await page.locator('#message').filter({hasText:'Investigation test prepared'}).waitFor();
+  assert.equal(await page.locator('#web-authorized').isChecked(),false);
   assert.equal(await page.locator('#web-session').inputValue(),'');assert.equal(seen.length,0);
+  stage='prepare and deliberately run authenticated baseline';
   await page.locator('#web-url').fill(url+'/private/record');await page.locator('#web-authorized').check();
   await page.locator('#web-limit').fill('20');await page.locator('#web-seconds').fill('30');await page.locator('#web-delay').fill('250');
   if(await page.locator('#web-auth-toggle').getAttribute('aria-expanded')==='false')await page.locator('#web-auth-toggle').click();
   await page.locator('#web-auth-check').fill(url+'/guard');await page.locator('#web-auth-marker').fill(marker);
-  const credentials=page.locator('details').filter({has:page.locator('#web-auth-headers')});await credentials.locator('summary').click();
+  const credentials=page.locator('details').filter({has:page.locator('#web-auth-headers')});
+  if(!await credentials.evaluate(element=>element.open))await credentials.locator('summary').click();
   await page.locator('#web-auth-headers').fill('Cookie: session='+cookie);await page.locator('#web-session-save').click();
   await page.locator('#web-session-result').filter({hasText:'Session kept'}).waitFor();assert(await page.locator('#web-session').inputValue());
   assert.equal(await page.locator('#web-auth-headers').inputValue(),'','Transient authentication headers must clear after keeping the session');
@@ -157,6 +208,7 @@ let stage='setup',browser,target,page;
     workspace_id:workspace,run_id:run.id,investigation_id:first,checks:['persistent question and role metadata','reload resume without execution',
     'durable autosave after reload','optimistic revision conflict keeps local edits','compare and explicitly reload saved revision',
     'stale evidence-link mutation exposes comparison and recovery without a lost update',
+    'first visible workbench transition clears prior selected auth/session/request context while status refresh is blocked',
     'safe prepared test handoff','real protected-session verification and authenticated baseline','automatic run linkage','selected evidence provenance inspection',
     'autosave waits for slow evidence mutation without losing interpretation',
     'manual finding with proof limits','linked finding handoff focuses the exact saved record','linked next question','closed negative without forced finding',

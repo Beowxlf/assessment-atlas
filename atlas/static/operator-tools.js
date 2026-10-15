@@ -88,6 +88,11 @@ function operatorURLs(node){
 }
 async function operatorPrepareWeb(entry){
   window.atlasResetInvestigationTest?.();
+  // Clear authority and secrets before navigation can reveal the workbench;
+  // waiting for its status refresh must never expose the previous test context.
+  if(!$('web-scope'))throw new Error('Web tools are still loading. Try again in a moment.');
+  for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();
+  $('web-session').value='';webClearAuth();$('web-authorized').checked=false;
   const workspace=state.id;await operatorOpen({view:'web',tab:'crawl'});if(state?.id!==workspace)return;for(const id of ['web-scope','web-request','web-crawl','web-payload'])$(id).reset();$('web-url').value=entry?new URL(entry.url).origin+'/':'';$('web-request-url').value=entry?.url||'';$('web-session').value='';webClearAuth();$('web-authorized').checked=false;
   for(const id of ['web-auth-check','web-auth-marker','web-auth-origins','web-login-url','web-login-preflight','web-login-csrf','web-login-bearer','web-protected-marker','web-audit-requests','web-custom-checks','web-schema','web-positions','web-canary-path','web-canary-marker','web-canary-url'])$(id).value='';$('web-auth-settings').hidden=true;$('web-auth-toggle').setAttribute('aria-expanded','false');$('web-active-audit').checked=false;$('web-oob-select').value='';document.querySelectorAll('#web-checks input, #web-more-checks input').forEach(input=>input.checked=input.value==='passive');for(const id of ['web-request-result','web-session-result','web-schema-result'])clear(id);
   $('web-url').focus();message(entry?'Discovery target prepared. '+entry.basis+'. Review the exact URL, paths and authorization before collecting.':'Enter the exact owned URL and review paths, limits and authorization before collecting.');

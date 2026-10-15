@@ -162,6 +162,7 @@ run(async()=>{
   $('embedded-auth').addEventListener('click',()=>run(async()=>{
     if(!embeddedId||!embeddedScope)throw new Error('Start and sign in through the embedded browser first.');const scope={...embeddedScope};
     window.atlasResetInvestigationTest?.();
+    $('web-scope').reset();webClearAuth();$('web-session').value='';$('web-authorized').checked=false;
     await operatorOpen({view:'web',tab:'scanner',auth:true});if(state?.id!==scope.workspace)return;
     $('web-scope').reset();webClearAuth();$('web-url').value=scope.url;$('web-prefix').value=scope.prefix;$('web-ca').value=scope.ca;$('web-vantage').value='Atlas Linux server';$('web-session').value='';$('web-authorized').checked=false;
     $('web-auth-check').value='';$('web-auth-marker').value='';$('web-auth-origins').value='';
