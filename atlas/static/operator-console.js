@@ -3,6 +3,23 @@ let embeddedQueue=Promise.resolve(),terminalQueue=Promise.resolve();
 let consoleWorkspace='',terminalId='',terminalCursor=0,terminalView=null,terminalPoll=false,terminalPlan=null;
 let embeddedId='',embeddedPoll=false,embeddedScope=null,terminalStarting=false,embeddedStarting=false,terminalAvailable=false;
 let consoleSource='terminal-selection',consoleReady=false,consoleNativeId='',terminalEvidenceId='';
+function terminalDocument(){
+  // xterm creates two document-local renderer styles. Give only that instance
+  // a style nonce, without granting inline scripts or changing global DOM APIs.
+  const styleNonce=document.querySelector('meta[name="atlas-style-nonce"]')?.content;
+  if(!styleNonce||!(/^[A-Za-z0-9_-]{32}$/).test(styleNonce))throw new Error('Terminal style policy is unavailable. Reload Atlas before opening a terminal.');
+  const bound=new Map();
+  return new Proxy(document,{get(target,key){
+    if(key==='createElement'){
+      if(!bound.has(key))bound.set(key,(name,options)=>{const node=target.createElement(name,options);if(node.localName==='style')node.nonce=styleNonce;return node;});
+      return bound.get(key);
+    }
+    const value=Reflect.get(target,key,target);
+    if(typeof value!=='function')return value;
+    if(!bound.has(key))bound.set(key,value.bind(target));
+    return bound.get(key);
+  }});
+}
 function consoleTab(name){
   for(const tab of ['terminal','browser','evidence'])$('console-'+tab).hidden=tab!==name;
   document.querySelectorAll('[data-console-tab]').forEach(button=>{button.classList.toggle('selected',button.dataset.consoleTab===name);button.setAttribute('aria-pressed',String(button.dataset.consoleTab===name));});
@@ -114,7 +131,7 @@ run(async()=>{
   const response=await fetch('/operator-console.html');if(!response.ok)throw new Error('Operator console could not load.');
   const holder=el('div');holder.innerHTML=await response.text();document.querySelector('main').append(holder.firstElementChild);
   const nav=button('Operator console',()=>operatorOpen({view:'console'}));nav.dataset.view='console';document.querySelector('nav').append(nav);consoleReady=true;
-  terminalView=new Terminal({cols:100,rows:24,scrollback:3000,allowProposedApi:false,convertEol:false,theme:{background:'#102c34',foreground:'#e6f2ed'}});terminalView.open($('terminal-screen'));
+  terminalView=new Terminal({cols:100,rows:24,scrollback:3000,allowProposedApi:false,convertEol:false,documentOverride:terminalDocument(),theme:{background:'#102c34',foreground:'#e6f2ed'}});terminalView.open($('terminal-screen'));
   terminalView.onSelectionChange(consoleControls);
   terminalView.onData(input=>{
     if(!terminalId)return;const workspace=state.id,id=terminalId;

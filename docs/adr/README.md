@@ -18,3 +18,5 @@ Statuses: **Proposed**, **Accepted**, **Rejected**, **Superseded**. Accepted rec
 | [0008 — Resumable investigations](0008-resumable-investigations.md) | Accepted within explicit requested implementation | Durable questions, revision-bound tests, evidence links, transient authentication and direct unvalidated finding handoff |
 | [0009 — Dependable execution context](0009-dependable-execution-context.md) | Accepted within explicit requested implementation | Measured host/route context, transient reviewed authority, scoped identity and new-run continuation |
 | [0010 — Operator-host desktop](0010-operator-host-desktop.md) | Accepted within explicit desktop/public-source request | Local VPN execution, per-user installation, optional selected-software computation and manual updates |
+
+- [0011 — Workflow suite shell and shared retests](0011-suite-shell-shared-retests.md): Web & API first, shared evidence/reporting, immutable baselines, explicit operator outcomes and native Parrot qualification.

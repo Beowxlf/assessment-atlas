@@ -25,13 +25,22 @@ class LocalCertificates:
             from cryptography import x509
             from cryptography.hazmat.primitives.asymmetric import rsa
             from cryptography.hazmat.primitives import hashes,serialization
-            from cryptography.x509.oid import NameOID
+            from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID
         except ImportError:raise ImportProblem('HTTPS interception requires cryptography. Install requirements-web.txt with the Python used to start Atlas.') from None
-        self.x509=x509;self.rsa=rsa;self.hashes=hashes;self.serialization=serialization;self.NameOID=NameOID
+        self.x509=x509;self.rsa=rsa;self.hashes=hashes;self.serialization=serialization;self.NameOID=NameOID;self.ExtendedKeyUsageOID=ExtendedKeyUsageOID
         self.key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
         name=x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'Assessment Atlas isolated interception '+uuid.uuid4().hex[:8])])
         start=dt.datetime.now(dt.timezone.utc)
-        self.ca=x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(self.key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(start-dt.timedelta(minutes=5)).not_valid_after(start+dt.timedelta(days=7)).add_extension(x509.BasicConstraints(ca=True,path_length=0),critical=True).add_extension(x509.KeyUsage(digital_signature=True,content_commitment=False,key_encipherment=False,data_encipherment=False,key_agreement=False,key_cert_sign=True,crl_sign=True,encipher_only=None,decipher_only=None),critical=True).sign(self.key,hashes.SHA256())
+        # RFC 5280 issuer/key identifiers keep these ephemeral chains valid
+        # under strict clients (including Python 3.13's default TLS policy).
+        self.ca=(x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(self.key.public_key())
+                 .serial_number(x509.random_serial_number()).not_valid_before(start-dt.timedelta(minutes=5))
+                 .not_valid_after(start+dt.timedelta(days=7))
+                 .add_extension(x509.BasicConstraints(ca=True,path_length=0),critical=True)
+                 .add_extension(x509.KeyUsage(digital_signature=True,content_commitment=False,key_encipherment=False,data_encipherment=False,key_agreement=False,key_cert_sign=True,crl_sign=True,encipher_only=None,decipher_only=None),critical=True)
+                 .add_extension(x509.SubjectKeyIdentifier.from_public_key(self.key.public_key()),critical=False)
+                 .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(self.key.public_key()),critical=False)
+                 .sign(self.key,hashes.SHA256()))
         self.pem=self.ca.public_bytes(serialization.Encoding.PEM).decode()
         self.fingerprint=self.ca.fingerprint(hashes.SHA256()).hex()
         spki=self.key.public_key().public_bytes(serialization.Encoding.DER,serialization.PublicFormat.SubjectPublicKeyInfo)
@@ -43,7 +52,16 @@ class LocalCertificates:
             x509=self.x509;serialization=self.serialization;key=self.rsa.generate_private_key(public_exponent=65537,key_size=2048);start=dt.datetime.now(dt.timezone.utc)
             try:san=x509.IPAddress(ipaddress.ip_address(hostname))
             except ValueError:san=x509.DNSName(hostname)
-            certificate=x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(self.NameOID.COMMON_NAME,hostname)])).issuer_name(self.ca.subject).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(start-dt.timedelta(minutes=5)).not_valid_after(start+dt.timedelta(days=1)).add_extension(x509.SubjectAlternativeName([san]),critical=False).add_extension(x509.BasicConstraints(ca=False,path_length=None),critical=True).sign(self.key,self.hashes.SHA256())
+            certificate=(x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(self.NameOID.COMMON_NAME,hostname)]))
+                         .issuer_name(self.ca.subject).public_key(key.public_key()).serial_number(x509.random_serial_number())
+                         .not_valid_before(start-dt.timedelta(minutes=5)).not_valid_after(start+dt.timedelta(days=1))
+                         .add_extension(x509.SubjectAlternativeName([san]),critical=False)
+                         .add_extension(x509.BasicConstraints(ca=False,path_length=None),critical=True)
+                         .add_extension(x509.KeyUsage(digital_signature=True,content_commitment=False,key_encipherment=True,data_encipherment=False,key_agreement=False,key_cert_sign=False,crl_sign=False,encipher_only=None,decipher_only=None),critical=True)
+                         .add_extension(x509.ExtendedKeyUsage([self.ExtendedKeyUsageOID.SERVER_AUTH]),critical=False)
+                         .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()),critical=False)
+                         .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(self.key.public_key()),critical=False)
+                         .sign(self.key,self.hashes.SHA256()))
             # The CA private key stays in process memory. Leaf key exists only until SSLContext loads it.
             path=folder/(uuid.uuid4().hex+'.pem')
             try:

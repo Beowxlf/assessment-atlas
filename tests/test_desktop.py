@@ -19,6 +19,7 @@ from atlas import desktop
 class Event:
     def __init__(self):
         self.handlers = []
+        self.complete = threading.Event()
 
     def __iadd__(self, callback):
         self.handlers.append(callback)
@@ -27,6 +28,10 @@ class Event:
     def emit(self, *args):
         for callback in self.handlers:
             callback(*args)
+        self.complete.set()
+
+    def wait(self, timeout=None):
+        return self.complete.wait(timeout)
 
     def connect(self, callback):
         self.handlers.append(callback)
@@ -214,7 +219,7 @@ class DesktopWindowBoundary(unittest.TestCase):
     def test_window_starts_blank_without_exposed_python_api_and_fails_closed(self):
         for fail in (False, True):
             window = types.SimpleNamespace(native=types.SimpleNamespace(webview=object()),
-                                            events=types.SimpleNamespace(before_show=Event()), urls=[], destroyed=False)
+                                            events=types.SimpleNamespace(before_show=Event(), loaded=Event()), urls=[], destroyed=False)
             window.load_url = window.urls.append
             window.destroy = lambda: setattr(window, 'destroyed', True)
             settings = {}
@@ -231,6 +236,7 @@ class DesktopWindowBoundary(unittest.TestCase):
                 worker = threading.Thread(target=callback)
                 worker.start()
                 window.events.before_show.emit()
+                window.events.loaded.emit()
                 worker.join(timeout=2)
                 self.assertFalse(worker.is_alive())
             fake = types.SimpleNamespace(settings=settings, create_window=create, start=start)
@@ -289,6 +295,17 @@ class DesktopWindowBoundary(unittest.TestCase):
             with self.assertRaises(SystemExit) as exit:
                 desktop.main(['--help'])
             self.assertEqual(exit.exception.code, 0)
+
+    def test_native_linux_chooses_qt6_when_distro_also_has_qt5(self):
+        with patch.object(desktop.sys, 'platform', 'linux'), \
+             patch.object(desktop.platform, 'freedesktop_os_release', return_value={'ID': 'parrot'}), \
+             patch.dict(os.environ, {'QT_API': '', 'QTWEBENGINE_DISABLE_SANDBOX': '', 'QTWEBENGINE_CHROMIUM_FLAGS': '', 'CHROMIUM_FLAGS': ''}), \
+             patch.object(desktop.importlib.util, 'find_spec', return_value=object()):
+            self.assertEqual(desktop.desktop_engine(), 'qt')
+            self.assertEqual(os.environ['QT_API'], 'pyside6')
+            os.environ['QT_API'] = 'pyqt5'
+            with self.assertRaisesRegex(desktop.DesktopProblem, 'requires Qt 6'):
+                desktop.desktop_engine()
 
     def test_windowed_windows_startup_failure_is_visible_without_private_paths(self):
         dialog = __import__('unittest.mock', fromlist=['Mock']).Mock()
