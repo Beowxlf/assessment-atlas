@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="file:///synthetic/nmap.xsl" type="text/xsl"?>
+<!DOCTYPE nmaprun>
+<!-- Entirely synthetic. Documentation addresses; not a real scan. -->
+<nmaprun scanner="nmap" version="7.95" start="1791828000">
+ <host endtime="1791828060"><status state="up" reason="echo-reply"/><address addr="192.0.2.20" addrtype="ipv4"/><hostnames><hostname name="portal.example.test" type="PTR"/></hostnames><ports><port protocol="tcp" portid="443"><state state="open" reason="syn-ack"/><service name="https" product="Synthetic web server" version="1.0" method="probed" conf="10"/><script id="http-title" output="Synthetic assessment portal"/></port><port protocol="tcp" portid="22"><state state="filtered" reason="no-response"/><service name="ssh" method="table" conf="3"/></port></ports><os><osmatch name="Synthetic Linux fingerprint" accuracy="92"/></os><trace proto="tcp" port="443"><hop ttl="1" ipaddr="192.0.2.1" rtt="1.2"/><hop ttl="2" ipaddr="192.0.2.20" rtt="2.5"/></trace></host>
+ <host endtime="1791828060"><status state="up" reason="echo-reply"/><address addr="192.0.2.1" addrtype="ipv4"/><hostnames><hostname name="Synthetic router"/></hostnames><ports><port protocol="tcp" portid="22"><state state="open"/><service name="ssh" product="Synthetic SSH" method="probed" conf="10"/></port></ports></host>
+</nmaprun>

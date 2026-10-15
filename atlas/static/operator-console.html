@@ -1,0 +1,47 @@
+<section id="console" class="view" hidden>
+  <div class="page-heading"><div><p class="eyebrow">DISCOVER · TEST · DOCUMENT</p><h1>Operator console</h1><p>Use the terminal and browser on the Atlas execution host. Keep evidence and findings in the selected assessment.</p></div><button data-console-tab="evidence">Document evidence</button></div>
+  <p id="console-vantage" class="console-vantage">Execution location: Atlas Linux server. Connect the HTB VPN on that host; your accessing browser's VPN route is separate.</p>
+  <div class="button-row console-tabs" role="group" aria-label="Operator console tools"><button data-console-tab="terminal" aria-pressed="true">Terminal</button><button data-console-tab="browser" aria-pressed="false">Browser</button><button data-console-tab="evidence" aria-pressed="false">Evidence to finding</button></div>
+  <article id="console-terminal" class="card">
+    <h2>Embedded terminal</h2><p id="terminal-readiness" class="muted">Checking the execution host…</p>
+    <label class="check"><input id="terminal-authorized" type="checkbox">I authorize shell access as the Atlas account on this execution host.</label>
+    <div class="button-row"><button id="terminal-open" class="primary" disabled>Open terminal</button><button id="terminal-stop" disabled>Stop terminal</button><button id="terminal-selection" disabled>Document selected terminal text</button></div>
+    <p id="terminal-status" role="status"></p><div id="terminal-screen" class="terminal-screen" aria-label="Interactive Linux terminal"></div>
+    <details id="terminal-operations"><summary>Configured discovery and enumeration</summary>
+      <form id="terminal-operation"><div class="two-col">
+        <label>Operation<select id="terminal-profile"><option value="tcp-discovery">Discover common TCP ports</option><option value="tcp-all">Discover all TCP ports</option><option value="service-enumeration">Enumerate selected services</option><option value="http-headers">Inspect HTTP headers</option></select></label>
+        <label>Exact target IPv4<input id="terminal-target" placeholder="Review the current HTB machine address" required></label>
+        <label>Expected VPN interface<input id="terminal-interface" value="tun0" required maxlength="15"></label>
+        <label>Time limit (seconds)<input id="terminal-timeout" type="number" min="15" max="600" value="180" required></label>
+        <label id="terminal-ports-label" hidden>Ports for service enumeration<input id="terminal-ports" placeholder="22,80,443"></label>
+        <label id="terminal-url-label" hidden>URL for header inspection<input id="terminal-url" placeholder="http://target-address/"></label>
+      </div><button>Preview operation and route</button></form>
+      <p id="terminal-plan-summary" class="subline" role="status"></p><pre id="terminal-plan"></pre>
+      <label class="check"><input id="terminal-operation-authorized" type="checkbox">I have reviewed this target, operation and execution route and authorize this bounded test.</label>
+      <button id="terminal-run" class="primary" disabled>Run reviewed operation</button>
+      <p class="muted">Typed operations have route checks, time/output limits and automatic result intake. Interactive shell commands are operator controlled. A completed scan does not prove exploitation or full coverage.</p>
+    </details>
+  </article>
+  <article id="console-browser" class="card" hidden>
+    <h2>Embedded assessment browser</h2>
+    <details id="embedded-setup" open><summary>Target scope and browser setup</summary>
+      <p class="muted">The isolated browser uses the Atlas host and scoped interception. Stop the browser before changing its target scope.</p>
+      <form id="embedded-start"><div class="two-col"><label>Exact website URL<input id="embedded-url" type="url" placeholder="https://owned-target/" required></label><label>Allowed path prefix<input id="embedded-prefix" value="/" required></label></div>
+        <label>Public CA certificate, when needed<textarea id="embedded-ca" placeholder="Optional public PEM certificate; never a private key"></textarea></label>
+        <label class="check"><input id="embedded-authorized" type="checkbox">I authorize browsing this exact target and path scope from the Atlas host.</label><button class="primary">Start embedded browser</button>
+      </form>
+    </details>
+    <p id="embedded-status" class="browser-status" role="status">No browser running. Review the target scope, then start a session.</p>
+    <div id="embedded-controls" hidden>
+      <form id="embedded-navigate" class="browser-address-bar"><label>Page within reviewed scope<input id="embedded-location" placeholder="/account or an exact scoped URL" maxlength="2000" autocomplete="off" required></label><button>Go</button></form>
+      <div class="button-row"><button id="embedded-refresh">Refresh screen</button><button id="embedded-read">Read visible text for documentation</button><button id="embedded-auth">Prepare authenticated scan</button><button id="embedded-stop">Stop browser</button></div>
+      <p class="muted">Click the screen, type normally and scroll. Tab/Shift+Tab moves between target fields. Use the text input for paste; review excerpts before saving.</p>
+      <img id="embedded-screen" class="embedded-screen" alt="Current isolated browser screen" tabindex="0" hidden>
+      <div class="browser-address-bar"><label>Text input or paste into the focused target field<input id="embedded-input" maxlength="4096" autocomplete="off"></label><button id="embedded-type">Type into target</button></div>
+    </div>
+  </article>
+  <article id="console-evidence" class="card" hidden>
+    <h2>Evidence to finding</h2><p>Review a short excerpt, attach it to an existing target, then draft the finding with its evidence reference. Source observations and independently validated impact remain separate.</p>
+    <form id="console-capture"><label>Assessment identity<select id="console-subject" required></select></label><label>Evidence title<input id="console-title" required maxlength="240"></label><label>Evidence excerpt<textarea id="console-text" required maxlength="12000" rows="8"></textarea></label><p class="muted">Remove passwords, cookies, VPN keys and unrelated sensitive content. Automated scrubbing is best effort.</p><button class="primary">Save evidence and draft finding</button></form>
+  </article>
+</section>

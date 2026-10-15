@@ -1,0 +1,54 @@
+# Getting started with Assessment Atlas 0.6.1
+
+## Open the application
+
+Extract the package into a folder you control. On Windows, double-click `Start.cmd`. Python 3.12 or newer is required; the launcher tries the Python launcher, Python on PATH, then the existing Codex Python runtime. On Linux/macOS run `sh start.sh`. Core import and HTTP/1.1 need no third-party Python packages. Native TLS/browser and HTTP/2/3/WebSocket features have optional dependencies described in [Setup](docs/web-tools.md). No external scanner is required.
+
+The app opens at http://127.0.0.1:8765. Keep its terminal running. Ctrl+C closes it; restart to return to saved workspaces. If the port is occupied, run `python -m atlas.server --port 8766`. Only loopback is supported. Do not expose this server on a network.
+
+## Complete an assessment workflow
+
+1. Create a workspace and record authorized targets, exclusions and handling limits. Offline import does not authorize live contact.
+2. Open **Discovery → Import discoveries** (or find Import scan results in Tools), select a file, and supply testing position, address-space context and missing collection time/version if known. Preview, review warnings, then save. Repeat for more sources.
+3. Open **Network map**. Select a node or connection to see normalized evidence, source location, collection/import times, original-file digest, and status/basis. Use source/type/claim filters, zoom and the scrollable canvas. Keyboard users can focus map elements and press Enter.
+4. Review identity suggestions. Names and IPs never merge automatically. Inspect both candidates, record evidence/rationale, then link compatible identities. Undo splits them again without discarding observations. Divergent values are retained; different times may explain the disagreement.
+5. Review source assertions in **Findings**. Add questions, tests/retests, access and manual findings in **Assessment activity**. Record evidence references and limitations; never credentials. Changing a review status does not independently validate a scanner result.
+6. Open **Reports & exports**. Preview the current map filter selection. By default identifiers and free text are withheld. Explicitly include them only for an authorized destination. Download structured JSON, a map SVG with embedded provenance metadata, or HTML that can be printed to PDF. Original files are never embedded. Inspect the downloaded material before sharing.
+
+The synthetic example is a safe way to explore all six input formats. Every result is invented, including apparent findings; no scan is run. Supported field details and common-format examples are in [Supported formats](docs/supported-formats.md).
+
+## Linux device output
+
+For a Linux machine you are authorized to inspect, explicitly run `python tools/capture_linux.py /protected/evidence/device-output.json` on that machine. It invokes only `ip -V`, `ip -j address show`, `ip -j route show table all`, and `ip -j neigh show`, each with a ten-second timeout. It does not scan peers or change state, and refuses to overwrite an existing output file. Review the output for sensitivity and import the resulting `linux-ip/1` bundle. The app never runs this capture helper itself. The helper has synthetic contract tests; equivalent fixed read-only commands produced the actual Linux snapshots used in [Live validation](docs/live-validation.md).
+
+## Storage, backup and deletion
+
+On Windows the default database is `%LOCALAPPDATA%\AssessmentAtlas\atlas.sqlite3`; Linux/macOS use `~/.local/share/AssessmentAtlas/atlas.sqlite3` unless LOCALAPPDATA is set. The app shows its actual path under **Reports & exports**. To select a directory, use `python -m atlas.server --data-dir /your/protected/folder` (quote paths with spaces). Protect the folder with OS access controls and disk encryption; app-level encryption is not implemented.
+
+Keep original input files outside the repository in your controlled evidence store. Atlas records the SHA-256 of imported UTF-8 bytes and their original filename reference, plus sanitized normalized excerpts; it does not retain raw source bytes. Selected long strings are capped at 12,000 characters. Secret scrubbing is best effort.
+
+Versions 0.2.0 through 0.6.1 use database schema 2 and do not rewrite historical observations. Opening schema 1 creates an exact backup before the upgrade. The web adapter is revision 4, Nmap is revision 3 with retained CPE children, and other legacy adapters remain revision 2. Nmap forced `up`/`user-set` is unknown reachability with a configured basis; actual port responses remain separate. Re-importing a prior file under a newer adapter creates a new derivation with retained history. Use source-snapshot filters when comparing versions.
+
+Stop the application before copying the database for backup. Restore to an empty data directory with the same application/schema version; preserve the prior database separately. Results exports are reports, not restorable workspace backups. Newer database schema versions are rejected rather than silently rewritten.
+
+Deleting a workspace requires typing its name. It removes the saved workspace, excerpts, imports, records and decisions from the active database, using SQLite secure deletion and compaction. This does not guarantee forensic erase or delete your originals, downloads, snapshots or external backups. Account for those copies under your engagement retention policy.
+
+## Current boundaries
+
+The first release handled bounded text imports and reporting. Version 0.2.0 adds native scoped web collection and exact original checks; full tool/scanner parity remains unfinished. No Nessus credentials, endpoint agents, passive network packet collection or remote collaboration are included. “Nexus” from the product discussion is provisionally interpreted as **Nessus**; no Nexus Repository compatibility is claimed. Read [Verification](docs/verification.md) and [native coverage](docs/native-web-coverage.md) before relying on support or performance claims.
+
+## Native web workbench
+
+Open Web workbench for deliberately scoped native collection, request comparison, parameter tests, interception, authenticated browsing and original checks. [Setup and recovery](docs/web-tools.md) explains optional dependencies and schema-2 backup; [coverage](docs/native-web-coverage.md) distinguishes implemented workflows from unfinished Burp parity. No Atlas endpoint agent or external Burp extension is installed.
+
+## Discovery, tools and software vulnerabilities
+
+Use **Discovery** as the target workspace and **Tools** (or **Ctrl/Command+K**) to find a task. Selected-target actions prepare the next tool without starting collection. Review URL drafts and keep the source/evidence limitations visible. Authentication settings open through **Configure authentication**. See [Operator workflow](docs/operator-workflow.md).
+
+For software scans, review exact CPE/package inventory or an SBOM tied to an existing asset. Use inert loaded JSON data, or explicitly allow software-identity queries to fixed public APIs. Matches go directly to Findings with immutable source snapshots and inventory evidence. KEV and EPSS remain dated prioritization context; no match is not a clean verdict. Read [Public vulnerability scans](docs/vulnerability-scans.md). Back up the separate public cache alongside the assessment database while the app is stopped.
+
+[Operator conveniences](docs/operator-qol.md) explains prepared console handoffs, finding filters, recent tools, shortcuts and draft recovery. Drafts remain only in the current tab; save before reload or sign-out.
+
+## Desktop installation — 0.9.0
+
+For host-VPN lab workflows, install and launch Atlas on that VPN host using the [desktop guide](docs/desktop.md). The native shell uses the same durable evidence model and requires fresh execution/authentication review after restart. The existing hosted URL remains a separate server execution context. Existing server assessments are not automatically moved to local storage.

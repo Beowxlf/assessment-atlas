@@ -1,6 +1,14 @@
 # Roadmap, owner decisions, and risks
 
-**Planning baseline: October 12, 2026.** Only governance documents exist. All product milestones below are proposed and unstarted. No dates, estimates, staffing, budget, stack, platform coverage, or supported parser are promised. Future implementation needs an authorized task; this roadmap is not authorization for live assessments.
+For the **proposed next product direction**, see [Atlas: from observations to defensible findings](product-vision-and-roadmap.md). It prioritizes resumable investigations, connected evidence and dependable execution, with sequenced workflow acceptance gates. The stages and decisions below retain the original delivery history and governance baseline.
+
+**Original planning baseline: October 12, 2026; updated October 14, 2026 after authorized native extensions.** Version 0.5.0 now extends the first runnable workflow and bounded assessment/reporting features. The stages below preserve the broad destination rather than claim competitor parity or completion of future coverage. No delivery dates, staffing or budget are promised; this roadmap is not itself authorization for live assessments.
+
+## Current evidence and decisions
+
+The governance bootstrap was published as `b2ba96c4b5e16d1801f85cf87e3758880762aafb`. The owner then authorized implementation and reversible stack/platform choices. [ADR 0002](adr/0002-local-initial-product.md) resolves D1/D2 for the initial product: Linux iproute2 bundles, Python 3.12+, SQLite and an original browser/SVG interface. It also records bounded local storage/export mechanics for D4. Native scoped web collection is now implemented under explicit subsequent owner direction; no endpoint agent or external Burp bridge is added. [ADR 0003](adr/0003-native-web-workbench.md) and the [capability/acceptance matrix](native-web-coverage.md) preserve broad native scope and unfinished work. [ADR 0004](adr/0004-transient-authenticated-audits.md) and [ADR 0005](adr/0005-protocols-and-owned-interactions.md) record implemented transient authenticated audits, protocols, WebSockets and owner-controlled callbacks. D3 licensing remains open; real-evidence handling must fit the chosen OS access/retention model. Broader workload thresholds, adapter maintenance capacity, security contact and repository enforcement remain owner/product decisions.
+
+The first workflow, six adapters and assessment features are implemented and locally exercised with synthetic evidence; [Verification](verification.md) records actual results. The expired connector certificate has been renewed with verified service/timer recovery. Actual bounded Nmap/Linux/manual intake and the complete private workflow passed; [Live validation](live-validation.md) records the evidence and Nmap assumption correction. Nessus/Nuclei/httpx remain synthetic-only, and agent-backed/fleet coverage remains unverified. The remaining stages below are future expansion; the initial product is not a claim that all later parser, passive, collector and integration work is complete.
 
 ## Staged delivery
 
@@ -28,11 +36,11 @@ Before implementation, document the selected platform, command-output bundle, su
 | G5 — Import safety and repeatability | Repeat identical import under the documented deduplication policy; changed input retains history. Malformed/oversized input and hostile XML/text neither execute content nor cause outbound requests. Failed import leaves the prior engagement intact under the declared transaction/partial-result policy. Verify persistence after closing/reopening. |
 | G6 — Export and cleanup | Export the selected map and structured results; verify every exported relation retains type, status, time/vantage, provenance references and conflicts/limitations, with a redaction manifest and usable approved evidence references. Reconcile export with selected view; exercise deletion of workspace artifacts and temporary outputs under the retention policy. |
 
-For each gate, record commit, environment, fixture identifiers/digests, steps, actual outcome, failures and limitations. Product behavior is not implemented until the relevant workflow exists, and not verified until these demonstrations occur. No gate here is recorded as passed by this document.
+For each gate, record commit, environment, fixture identifiers/digests, steps, actual outcome, failures and limitations. Product behavior is not implemented until the relevant workflow exists, and not verified until demonstrations occur. Local synthetic demonstrations for G1–G6 are recorded in [Verification](verification.md), with raw-file handling, platform, scale and accessibility limits. Live-lab verification and a human assessor acceptance trial remain separate evidence.
 
 ## Unresolved owner decisions
 
-Brayden owns these decisions unless he delegates them explicitly. No answer is assumed by publication.
+Brayden owns these decisions unless he delegates them explicitly. The table preserves the original decision questions; initial D1/D2 and reversible D4 choices are now recorded above and in ADR 0002. Other answers are not assumed.
 
 | ID | Decision | Evidence needed / when needed |
 | --- | --- | --- |
@@ -56,3 +64,19 @@ Brayden owns these decisions unless he delegates them explicitly. No answer is a
 | Vision/effort mismatch | Broad product ambition without workload, budget or user trials → overcommitment | Finish a vertical workflow, measure usefulness, retain extensible boundaries; reassess after first-slice trial |
 
 Governance: [decision authority](../GOVERNANCE.md). Architecture changes: [ADRs](adr/README.md).
+
+## Implemented 0.5.0 extension
+
+The owner requested public vulnerability scans and a simpler operator workflow. [ADR 0006](adr/0006-public-advisory-scans.md) records fixed public NVD/OSV/GHSA applicability, separate CISA KEV/FIRST EPSS context, reviewed existing-asset inventory, immutable direct findings and a bounded local cache. Discovery/Tools now provide target inspection, prepared-context handoffs and a task/name directory. [Vulnerability coverage](vulnerability-scans.md) and [operator acceptance](operator-workflow.md) retain unknown applicability, source availability, explicit query disclosure and heuristic/browser versus real-operator limits. Broader authenticated package collection, distribution/backport-aware version semantics, universal SBOM coverage, bulk database mirroring, independent scanner accuracy benchmarks and competitor parity remain future work.
+
+## Hosted operator extension — 0.6.0
+
+The owner requested and received opt-in private Ubuntu hosting, an embedded execution terminal/browser and evidence-to-finding handoff; [ADR 0007](adr/0007-hosted-operator-console.md) records the resulting single-operator trust model. [Pentest audit](pentest-workflow-audit.md) separates delivered fixture workflows from the unfinished host connector, real HTB route/target trial, independent scanner accuracy, large-inventory pagination, broader clients and operator/tenancy qualification. Earlier hosting exclusions describe prior releases.
+
+## Dependable execution extension — 0.8.0
+
+The owner requested the next investigation milestone: correct host, VPN route and authenticated session, plus safe interrupted-test continuation. [ADR 0009](adr/0009-dependable-execution-context.md) records the implemented installation identity, explicit host/interface expectations, transient exact-operation review, session binding and preserved incomplete outcomes. [Execution context](execution-context.md) distinguishes strict native socket checks, configured external-tool sampling and manual shell/embedded-browser limits. No connector or real HTB VPN profile is introduced. The release receipt records actual regression, Ubuntu and restart qualification; human productivity and real HTB gates remain open.
+
+## Implemented delivery step — operator-host desktop (0.9.0)
+
+Per-user desktop runtime/installation, local VPN execution boundary, optional software-only cache-analysis companion and manual stable-release checks are implemented. Exact platform acceptance is in [desktop verification](desktop-verification.md), and installation is in [desktop setup](desktop.md). Remaining work: signed bundled native installers, reviewed server-to-local assessment migration/synchronization, broader native platform acceptance and larger asynchronous computation jobs. Remote host execution is not silently substituted when a VPN is absent.

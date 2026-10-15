@@ -1,0 +1,58 @@
+# Protocols, WebSockets and interaction testing — 0.4.0
+
+HTTP/2, HTTP/3, RFC6455 WebSocket messages and an owner-controlled HTTP/DNS interaction receiver are native tools. Their captures use the existing assessment evidence, map, Findings, review history and reports. Scanner issues and operator-supplied WebSocket assertions remain **scanner-reported**; a received callback does not by itself prove SSRF, command execution or sensitive-data access.
+
+## Setup and HTTP transport
+
+Use Python 3.12+ and install `python -m pip install -r requirements-protocols.txt` in the Python that launches Atlas. The pinned optional engines are h2 4.4.1, aioquic 1.6.1 and wsproto 1.3.2. No third-party runtime is bundled. Ordinary HTTP/1.1 and the HTTP/DNS receiver remain standard-library features. TLS interception additionally needs [requirements-web.txt](../requirements-web.txt); isolated Edge needs Node/Playwright as described in [Setup](web-tools.md). The UI displays engine availability and saves a selected protocol failure instead of silently falling back.
+
+Choose HTTP/1.1, HTTP/2 or HTTP/3 in the common collection scope. The selection applies to scoped requests, crawler/audit requests, login/guard/control requests and the proxy's upstream HTTP connection. HTTP/2 uses verified HTTPS with ALPN `h2`, or explicitly selected cleartext prior knowledge. HTTP/3 requires HTTPS and uses QUIC/TLS 1.3 over a connected UDP socket. Both use the scope's pinned numeric address and original hostname/certificate checks. HTTP/3 does not follow Alt-Svc, migrate to a new address, send 0-RTT data or downgrade to HTTP/1.1.
+
+These are bounded single-request engines. Request bodies are UTF-8 up to 16 KiB; normal responses are bounded to 64 KiB, proxy forwarding to 2 MiB, retained excerpts to 8 KiB, protocol wire input to 4 MiB and response headers to 100/64 KiB. Push streams are not fetched. The browser-to-Atlas proxy connection remains HTTP/1.1 and browser QUIC is disabled; selecting HTTP/3 tests the independently verified **upstream** transport. No raw frame editor, streaming uploads, arbitrary binary HTTP bodies or complete HTTP/2/3 interoperability/fuzz qualification is claimed. QUIC evidence records UDP separately from TCP; logical resources are still not physical topology.
+
+## WebSocket capture, editing and replay
+
+1. Set the matching HTTP(S) scope, public CA and limits. Enter a `ws://` or `wss://` URL under **WebSockets & callbacks**. WSS uses pinned-address, verified TLS; classic HTTP/1.1 Upgrade is independent of the HTTP transport selector. Additional origins must be explicitly scoped.
+2. Optionally select the same transient authenticated session used for scans. Atlas verifies its anonymous/protected guard and explicit login sequence before the handshake. Login/guard/handshake requests and messages share the operation/time budget. Failure saves metadata and never tries an anonymous fallback. A verified handshake session does not establish authorization for every message.
+3. Send text or strict Base64 binary messages up to 64 KiB. The last twenty complete messages are transiently available for **Edit / replay**. Sent/received messages become immutable direction/opcode/byte-count/digest evidence; bodies are metadata by default. Binary message bodies are always withheld from saved evidence.
+4. To create an issue, select a recent message, enter its title/severity/interpretation and choose **Save directly to assessment findings**. This is an operator assertion linked to the message capture, not an automatically demonstrated vulnerability. Review it in Findings and record independent validation in Assessment activity.
+5. For a scoped isolated browser, exercise the application's WebSocket flows normally. The native proxy captures both directions and exposes **Intercept WebSocket messages**; pending text/Base64 messages can be edited, forwarded or dropped. The original received message is saved before any edited derivation. A pending decision times out fail-closed after thirty seconds; edited messages retain original digest/capture links.
+
+Scope/path/exclusion checks precede the handshake. Connections/messages have explicit time, count and wire bounds; no more than four live manual channels are supported. Closing a manual channel discards raw recent messages, its authentication copy and editor capture buffers; retained assessment evidence remains. Close the proxy/browser to terminate its channels. RFC6455 fragmentation and ping handling are supported with complete-message bounds; no permessage-deflate, raw fragmentation editor, HTTP/2 extended CONNECT, WebTransport/datagrams or universal subprotocol coverage is claimed.
+
+## Owned HTTP/DNS callbacks
+
+Start a receiver in **WebSockets & callbacks**. Default listeners use `127.0.0.1`, HTTP port 8879 and DNS/UDP port 5353. Select unused distinct ports; the Atlas control port is excluded. The receiver lasts at most 300 seconds, accepts at most 200 interactions and issues at most 100 random 192-bit tokens. It supports HTTP requests and one bounded uncompressed DNS question; no recursion or DNS resolution service is provided.
+
+For an owned remote target, enter an exact local numeric IPv4 interface and explicitly authorize remote callbacks. The configured DNS suffix must be yours to control. The optional advertised HTTP(S) origin can point to your existing reverse proxy; its routing/TLS is your configuration. Atlas does not change firewalls, NAT, DNS delegation, certificates, public hosting or external callback services. Loopback callbacks alone cannot demonstrate reachability from a remote target. A public delegated DNS service normally needs UDP port 53 and appropriate operator configuration; the receiver can bind an explicitly selected DNS port.
+
+**Issue token** associates a callback URL/DNS name with the scoped request resource. Use it deliberately in an owned test or select an active receiver for the scanner's HTTP URL/external XML canaries. Actual matching HTTP/DNS interactions save metadata and Findings immediately, including late interactions after the scanner finishes while the receiver remains alive. Scanner totals are synchronized with receipt updates so a terminal status cannot overwrite newer callback counts; report evidence includes those findings. An immutable binding observation links the issued correlation ID to the probe capture even when a fast callback arrives before that capture is saved. **Inspect test and controls** follows correlation, baseline and probe IDs across callback evidence.
+
+Tokens remain transient and are withheld from retained probe body/header values; query values are already withheld. Token-shaped 192-bit hex values are suppressed before truncation even if a delayed response arrives after the receiver closes. HTTP callback bodies are never saved, only byte count/hash. Peers, time and query/method are recorded. The peer might be a resolver, proxy, operator or another observer of the token: matching-token receipt is observed; application causality and exploit impact need separate validation. Unknown/expired tokens are rejected; stop clears issued tokens and listeners. No independent DNS/HTTP public deployment or arbitrary network exfiltration service is claimed.
+
+## Added scanner families
+
+Enable **active auditing** and select checks under **Broader canary and callback checks**. They use the same exact scope, rate/request/time budget, repeated session guards and baseline/control evidence as [authenticated audits](authenticated-scans.md). Error/unsupported/truncated responses and exhausted budgets are incomplete coverage, not clean security verdicts.
+
+| Selection | Required evidence | Boundary |
+| --- | --- | --- |
+| SQL true/false | Two true-shaped responses match baseline; two false-shaped responses match a different digest; literal probe reflection excluded | One quote/comment syntax, stable-response comparison; no query/data extraction proof |
+| NoSQL / LDAP / XPath error | Probe introduces a recognized signature, absent from baseline/neutral control and repeatable | String/scalar error canaries; no complete backend syntax or authentication bypass coverage |
+| Shell-shaped arithmetic | Two unique-marker expected products and a neutral control | Bounded printf/arithmetic input only; shell identity, privileges and arbitrary execution unproven |
+| Selected file canary | Explicit owned path/unique content marker occurs on probe/repeat, absent from baseline/missing-file control | No automatic sensitive-file selection or arbitrary-file disclosure claim |
+| External redirect | Reserved `.invalid` destination returned verbatim in a redirect Location | Destination is never followed; phishing/token impact unverified |
+| XML entity | Two bounded internal-entity values expand without full XML literal reflection | No entity expansion bomb or inferred external/file access |
+| CSRF canary | Exact owned POST canary accepts a foreign Origin with selected CSRF fields removed and returns the chosen marker | Stateful: provide an isolated resettable canary; no browser/SameSite feasibility verdict or automatic rollback |
+| Cache canary | Unique query-keyed canary retains a supplied `.invalid` host marker in a header-free follow-up | Explicit isolated canary URL required; a no-cache cleanup request is attempted within the shared budget; invalidation/shared-key effects are not guaranteed |
+| HTTP URL callback | Selected scalar insertion becomes the owned receiver URL; actual matching callback | Token/probe association, not an automatic SSRF impact verdict |
+| External XML callback | Explicit XML body references only the owned HTTP receiver; actual callback | No sensitive files/system data requested; parser behavior still requires validation |
+
+File tests need an operator-owned path and unique 8–200 character content marker. CSRF/cache require an exact scoped canary URL; CSRF additionally uses the unique success marker. Stateful canaries must be isolated/resettable by the operator. Discovered forms are not automatically submitted. These original checks broaden coverage; context-sensitive XSS execution, general cross-role/IDOR, time-based injection, request smuggling, complete cache/SSRF variants and an independent accuracy corpus remain unfinished.
+
+## Evidence compatibility and qualification
+
+Web adapter revision **4** adds protocol/QUIC, WebSocket and callback observations. Old adapter-2/3 derivations and schema-2 workspaces remain intact; an identical historical source may receive a new derivation without rewriting old evidence. Other importers remain revision 2. Imported envelopes stay inert and do not start channels or listeners.
+
+The owned fixture suite exercises real h2 TLS, real QUIC h3 TLS, CA rejection, classic WS/WSS text/binary, both-direction proxy edits, authenticated handshake/budgets, HTTP/DNS receipts and vulnerable/fixed canaries. Real Edge UI tests cover request selection, message replay, findings/export and scoped browser WSS. These are workstation/fixture results, not complete Burp parity, an independent security audit or a representative scanner false-positive/false-negative benchmark. Exact extracted-package results and commit/hash are in the versioned delivery receipt.
+
+Primary engine/service references checked October 14, 2026: [hyper-h2 usage](https://python-hyper.org/projects/hyper-h2/en/stable/basic-usage.html), [aioquic QUIC configuration](https://aioquic.readthedocs.io/en/latest/quic.html), [aioquic HTTP/3](https://aioquic.readthedocs.io/en/latest/h3.html), and [PortSwigger Collaborator](https://portswigger.net/burp/documentation/desktop/tools/collaborator). The reference inventory does not establish Atlas equivalence or reuse of proprietary rules.

@@ -1,0 +1,1 @@
+{"template-id":"synthetic-exposure","info":{"name":"Synthetic application metadata exposure","severity":"low","description":"Invented template match, not independently validated impact."},"type":"http","host":"https://portal.example.test","ip":"192.0.2.20","matched-at":"https://portal.example.test/status","matcher-name":"synthetic-marker","timestamp":"2026-10-12T10:02:00Z"}

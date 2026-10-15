@@ -1,6 +1,6 @@
 # Contributing
 
-Start with the [charter](docs/charter.md), [architecture](docs/architecture.md), [roadmap](docs/roadmap.md), and [security policy](SECURITY.md). There are no installation, build, or test commands yet because implementation has not started. Do not invent a development environment or claim a check exists.
+Start with the [charter](docs/charter.md), [architecture](docs/architecture.md), [roadmap](docs/roadmap.md), [supported formats](docs/supported-formats.md), and [security policy](SECURITY.md). Use Python 3.12+; there are no third-party runtime packages. Start with `python -m atlas.server`; run `python -m unittest discover -s tests -v`. Optional real-browser checks are documented in [Verification](docs/verification.md). Do not claim CI or platform tests that were not executed.
 
 ## Propose a focused change
 

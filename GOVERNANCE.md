@@ -2,6 +2,8 @@
 
 Effective baseline: October 12, 2026. This is an owner-led early-stage project. Product intent is established in the [charter](docs/charter.md); architecture details and delivery gates are proposals until their stated decisions are resolved. Publishing these documents does not approve a stack, license, collector, or product release.
 
+Implementation update, October 12: Brayden subsequently authorized a finished initial application, bounded NorthGate testing, code publication and reversible engineering choices. [ADR 0002](docs/adr/0002-local-initial-product.md) records the selected local stack/platform and storage/exports. Implementation uses a feature branch/PR; a runnable private package can be delivered for review. This does not grant public distribution or licensing rights, and no independent owner acceptance of unresolved product decisions is implied.
+
 ## Decision rights
 
 Brayden is the product owner and final decision maker. The repository is initially hosted in his personal GitHub account, `Beowxlf`. No additional maintainers or contributors are appointed by this document.
@@ -30,3 +32,7 @@ Use [Contributing](CONTRIBUTING.md) for proposals and review evidence. Discuss b
 A documentation commit is not a product release. Before an application release, identify the exact commit, supported adapters and formats, completed roadmap gates, security limitations, compatibility/migration behavior, packaging validation, and rollback or recovery instructions. The owner approves distribution after reviewing those results. Publish only supported claims and approved synthetic examples; never bundle engagement evidence or credentials.
 
 Security findings follow [Security](SECURITY.md). Material governance changes use the same review path as substantive product changes. Update linked documents together, preserve ADR history, and record the date and rationale for changed authority or policy.
+
+## October 15, 2026 distribution update
+
+The owner explicitly requested an installable operator-host application and a public repository, selecting **public source with all rights reserved**. [LICENSE](LICENSE) records that choice; it grants no open-source reuse rights. Version 0.9.0 adds per-user desktop installation and an optional HTTPS computation companion. This current authorization supersedes earlier statements that public distribution was not authorized. It does not authorize publishing assessment data, issuing an open-source license, or accepting third-party contributions under undefined terms.

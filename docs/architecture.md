@@ -1,13 +1,13 @@
 # Architecture principles and evidence model
 
-**Status:** product-direction baseline with a proposed logical model, October 12, 2026. No implementation, database schema, technology stack, or deployment topology is selected. [ADR 0001](adr/0001-evidence-first-imports.md) distinguishes established direction from proposed mechanics.
+**Status:** product-direction baseline and logical model, October 12, 2026. Version 0.4.0 implements a bounded subset in Python, local SQLite and a browser UI; [ADR 0002](adr/0002-local-initial-product.md) records actual choices, formats, storage and remaining limits. Some richer logical entities/lifecycle contracts below remain future design requirements. [ADR 0001](adr/0001-evidence-first-imports.md) records the established direction.
 
 ## Evidence flow and trust boundaries
 
 ```mermaid
 flowchart LR
   A[Untrusted offline artifacts] --> B[Bounded source adapters]
-  C[Later authorized collectors] --> B
+  C[Explicit native web collectors] --> B
   B --> D[Normalized observations and diagnostics]
   D --> E[Identity reconciliation and evidence store]
   E --> F[Interactive map and evidence inspection]
@@ -77,3 +77,19 @@ Adapters declare supported formats/versions, input limits, exact mappings, diagn
 Map inspection must expose relation type, observed/inferred/unknown status, evidence basis, time, vantage, supporting and conflicting observations. Filters/snapshots must make omitted and stale evidence understandable. Findings, tests and access history should refer to the same entities; retain separate evidence levels for service exposure, authentication, authorization and impact.
 
 Exports must preserve typed edges and provenance references plus time/vantage, uncertainty, conflict and redaction information. They must not turn inferred graph routes into demonstrated attack paths. Export formats, graph library and durable storage remain undecided. [Roadmap gates](roadmap.md) define the first end-to-end evidence required.
+
+## Native web implementation
+
+[ADR 0003](adr/0003-native-web-workbench.md) records actual native tool boundaries, logical web origin/resource/parameter entities, atlas-web/1 normalization, source/body digests, offline/native intake provenance, schema-2 exact backup and persisted run states. A proxy is an explicitly configured local tool, not an endpoint agent. Public CA input does not disable TLS; the isolated browser trusts only its ephemeral proxy CA pin while the proxy verifies upstream. The broader logical model above remains a destination, not a parity claim.
+
+## Native vulnerability and operator extension
+
+[ADR 0006](adr/0006-public-advisory-scans.md) adds a bounded public cache (schema 1), inventory-to-advisory jobs and direct inferred observations/findings on existing assets. Source snapshots and inventory references are copied into the assessment before cache replacement; main schema remains 2. Nmap adapter 3 retains CPEs. Public queries exclude target/credential/assessment identity fields. Discovery and a searchable tool directory prepare context without executing imported content or starting a target request. [Vulnerability scans](vulnerability-scans.md) and [operator workflow](operator-workflow.md) define exact contracts.
+
+## Hosted operator console
+
+[ADR 0007](adr/0007-hosted-operator-console.md) adds optional fixed HTTPS operator authentication, browser-session/workspace-bound Linux PTYs and native browser actions. Protected raw operation files are separate from normalized assessment storage and exports. Selected excerpts reference existing identities and native runs where available; manually authored findings now appear in the Findings view. Schema 2 remains unchanged. See [Hosted console](hosted-console.md) for trust, vantage, deployment and qualification limits.
+
+## Operator-host desktop — 0.9.0
+
+The desktop runtime owns an ephemeral loopback listener, native interface and local collectors/SQLite on the operator host. Target traffic follows that host's reviewed routes; the optional server receives only explicitly reviewed software identities for bounded cached advisory matching. Source results remain inferred evidence, with a manual finding handoff. No workspace synchronization or remote target-execution fallback is introduced. See [ADR 0010](adr/0010-operator-host-desktop.md).

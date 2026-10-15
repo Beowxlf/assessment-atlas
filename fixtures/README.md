@@ -1,0 +1,7 @@
+# Synthetic input fixtures
+
+Every device, address relationship, service, finding, version string and result in this directory is invented for testing. Documentation address ranges and `.test` names prevent accidental representation of NorthGate or client evidence. No scanner, collector or Nessus instance produced these files.
+
+Expected semantic facts: `nmap.xml` has two host candidates, three service associations, one inferred OS match, two routed hop observations and one ordered hop relationship. `device.json` has two interfaces, two address assignments, two inferred subnet memberships, two operational route observations and one local neighbor. `scan.nessus` has one medium scanner assertion; `nuclei.jsonl` one low template assertion; `httpx.jsonl` one web response; `manual.json` one configured route and an older down-state assertion. Identity suggestions must never merge candidates automatically. Linking the manual router and Nmap router exposes divergent host-state evidence; undo restores separate identities.
+
+The `vulnerability-*` fixtures are invented Nmap CPE/SBOM identities, NVD-format applicability, GHSA/OSV aliases, KEV-format and EPSS-format priority data. They are not official catalog contents or vulnerability claims. They test affected/fixed versions, unqualified environment conditions, source authenticity, direct existing-asset findings, reports and UI handoffs without target contact.

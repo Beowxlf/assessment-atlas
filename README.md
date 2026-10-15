@@ -2,17 +2,57 @@
 
 A unified workspace for authorized security assessments that grows a network map from evidence gathered during an engagement.
 
-**Status: governance and product definition only, initialized October 12, 2026.** No application, parser, collector, agent, automated test suite, CI workflow, or release is included. Assessment Atlas and `assessment-atlas` are working names. Repository hosting is private by default; this is not a decision about future product deployment.
+**Status: installable operator-host desktop and assessment workspace, version 0.9.0, October 15, 2026.** A local application with SQLite persistence, six legacy import formats plus inert web evidence, an interactive network/web map, identity reconciliation, assessment tracking and reports. Assessment Atlas and `assessment-atlas` remain working names. The owner authorized public source with all rights reserved; see [LICENSE](LICENSE). Native scoped crawling, request edit/replay/compare, verified authenticated crawl-and-audit, query/form/JSON checks, multi-position payloads, request/text-response interception, isolated JavaScript browser session handoff, codecs, token sample measurements and OpenAPI inventory are implemented. Native HTTP/2/3, scoped WebSocket capture/edit/replay and browser interception, owned HTTP/DNS callbacks, and twelve added scanner selections now feed the same assessment directly. Version 0.6 adds opt-in authenticated HTTPS hosting, an unprivileged Linux terminal, scoped embedded browser and evidence-to-finding handoff. No outbound execution agent, external Burp bridge or paid component is included. Windows/Linux package checks are defined in GitHub Actions; executed results are recorded separately. Full Burp feature/scanner parity remains unfinished; see the [capability and acceptance matrix](docs/native-web-coverage.md).
+
+Version 0.5.0 adds native [public vulnerability scans](docs/vulnerability-scans.md) with NVD/OSV/GHSA source criteria and separate KEV/EPSS context, direct existing-asset findings, offline JSON/SBOM inventory and explicit fixed public lookups. The [operator workspace](docs/operator-workflow.md) now has a discovery target table, prepared-context handoffs, six primary destinations and a searchable tool directory.
+
+Version 0.6.1 adds [operator conveniences](docs/operator-qol.md): prepared terminal/browser target handoffs, finding filters, keyboard tool navigation and recents, transient workspace drafts, and compact scoped browser controls.
+
+Version 0.6.1 adds [operator conveniences](docs/operator-qol.md): prepared terminal/browser target handoffs, finding filters, keyboard tool navigation and recents, transient workspace drafts, and compact scoped browser controls.
 
 The destination is one workspace for topology, hosts and services, findings, access achieved, unanswered questions, testing history, and reports. Source-specific adapters should bring heterogeneous evidence into one common model. Offline imports are a first-class path; authenticated management collectors and optional agents are later possibilities.
 
 Nmap discovery, service signatures, and OS fingerprints provide useful initial mapping evidence. A useful map does not require a complete physical topology. Each connection must explain what its evidence establishes and what remains unknown. Access to a router alone does not populate the workspace: configuration and operational output must be collected or imported.
 
+Version 0.7.0 adds [resumable investigations](docs/investigations.md): durable questions, linked native/authenticated tests, supporting and contradicting evidence, saved interpretation/next actions, and direct manual finding handoff. Saved work survives restart; credentials and sessions remain transient. Open **Investigations** or resume a question from Workspace. [ADR 0008](docs/adr/0008-resumable-investigations.md) records compatibility and proof boundaries.
+
+Version 0.8.0 adds [dependable execution context](docs/execution-context.md): saved execution-host/interface expectations, single-use route and session review, repeated checks during collection, and safe preparation of a new run from an interrupted result. The original run and evidence remain intact; credentials and authority are never restored. [ADR 0009](docs/adr/0009-dependable-execution-context.md) records the contract and limitations.
+
 ## First complete workflow
 
-Import Nmap XML and output from one supported device platform → reconcile device identities → inspect an interactive map → open evidence behind a connection → export the map and results with their limitations intact.
+Import Nmap XML and output from one supported device platform â†’ reconcile device identities â†’ inspect an interactive map â†’ open evidence behind a connection â†’ export the map and results with their limitations intact.
 
-The first device platform, technology stack, deployment model, and license remain undecided. See the [roadmap and decision register](docs/roadmap.md) for proposed gates and owner decisions.
+The first device platform is Linux iproute2 JSON; the stack is Python 3.12+ with standard-library SQLite/HTTP and a browser interface with a locally served MIT-licensed terminal library. The backend remains on loopback, with optional fixed HTTPS proxy hosting for one trusted operator account. See [Hosted operator console](docs/hosted-console.md) and [Third-party notices](THIRD_PARTY_NOTICES.md). See [ADR 0002](docs/adr/0002-local-initial-product.md), the [supported formats](docs/supported-formats.md), and the [roadmap](docs/roadmap.md). Original code remains all rights reserved; third-party licenses are separate.
+
+## Install the desktop app
+
+Install Atlas on the machine running your lab VPN. RDP into Parrot/Kali is fine: local Atlas tools use that machine's reviewed routes. The optional computation server does not execute target scans or supply the VPN. Read [Desktop setup, updates and recovery](docs/desktop.md) and [verification](docs/desktop-verification.md).
+
+Download and extract the source release from [Releases](https://github.com/Beowxlf/assessment-atlas/releases). With Python 3.12+ available, run `sh packaging/install-linux.sh` on Linux, or `powershell -NoProfile -File packaging/install-windows.ps1` on Windows. Launch **Assessment Atlas** from the application menu. The per-user installer downloads the selected Python dependencies; it does not change your VPN, proxy or system trust settings. This release requires Python and platform web-engine prerequisites; no bundled executable is claimed. Embedded terminal/discovery profiles remain Linux-only.
+
+**Tools → App & server** connects explicitly to an optional Atlas 0.9.0+ HTTPS computation server, performs selected-software advisory matching and retains reviewed results as inferred assessment evidence. Local investigations, target credentials and full assessments are not uploaded automatically. Stable updates are checked manually against the Atlas repository; nothing is installed in the background.
+
+## Existing local browser and hosted modes
+
+Extract the runnable package and double-click `Start.cmd` on Windows. Python 3.12+ is required; the launcher can also use the installed Codex Python runtime. On macOS/Linux run `sh start.sh`. Core import and ordinary web tools need no third-party Python runtime packages; native HTTPS interception additionally requires cryptography, and the isolated browser requires Node/Playwright/Edge. No Burp license/application is needed. HTTP/2/3 and WebSockets use the optional pinned engines in requirements-protocols.txt. See [native setup](docs/web-tools.md) and [protocol/callback workflows](docs/protocols-and-callbacks.md). Imports need no network; deliberate live tools contact only configured scoped targets.
+
+From a terminal in the repository: `python -m atlas.server`. Open **http://127.0.0.1:8765**. The terminal must remain running; Ctrl+C closes the server, and saved workspaces remain available when it restarts. Use `--port 8766` if the default port is occupied. Do not expose or reverse-proxy this local server onto a network.
+
+Create a workspace, record engagement scope, then open **Discovery** to import results or prepare scoped web enumeration. **Tools** and the header tool finder locate every native tool. **More workspace views** exposes the existing detailed views. Preview a file, supply testing position/network context when known, and save. Use **Network map** to inspect nodes/connections and reconcile identities with evidence. Add questions, tests, access and manual findings in **Assessment activity**; review scanner assertions in **Findings**. **Reports** provides JSON, map SVG and a printable HTML report; default exports withhold identifiers/free text, and you can preview before including them. Raw source bytes are never persisted or embedded: keep the originals in a protected evidence store and use their recorded hashes/references.
+
+Version 0.1.1 has bounded actual NorthGate Nmap/Linux/manual verification and corrects scanner-forced host status: `up`/`user-set` is a configured assumption with unknown reachability, while open/filtered port results remain distinct. Historical observations stay intact; new derivations use adapter revision 2. See [Live validation](docs/live-validation.md).
+
+The **synthetic example** demonstrates all six inputs without contacting targets. See [Getting started](GETTING_STARTED.md) for storage, backup, cleanup and capture instructions, and [Verification](docs/verification.md) for actual test evidence and limits.
+
+## Native web tools
+
+Open **Web workbench**, set exact owned origins/path scope and limits, then choose crawl/paths, request editing/comparison, selected-parameter tests, interception, authenticated browser or explicit scanner checks. Results feed the same evidence/map/review/reports. Imports never start collection. Metadata is the default; credentials/CA private keys stay transient. Schema 2 automatically backs up schema-1 data before upgrading and keeps unfinished runs interrupted after restart. [Setup, retention and recovery](docs/web-tools.md), [exact coverage and remaining work](docs/native-web-coverage.md), [security review](docs/web-security.md).
+
+[Authenticated scans and advanced workflow](docs/authenticated-scans.md) explains transient cookie/bearer/login-sequence sessions, session-loss stopping, original checks, API requests, baseline/control finding evidence and exact limits. New findings feed the existing assessment directly. [Protocols, WebSockets and callbacks](docs/protocols-and-callbacks.md) explains the added transport, interaction correlation and canary checks. Schema remains 2; no database migration is required from 0.2.0/0.3.0. Web adapter revision 4 preserves older derivations.
+
+## Verify a checkout
+
+Run `python -m unittest discover -s tests -v`. These use synthetic fixtures and local temporary databases. Install requirements-web.txt and requirements-protocols.txt for the complete protocol/TLS fixture suite; optional protocol tests explicitly skip when their engines are absent. Browser checks are optional development tooling: start the local app, install/use Playwright with Microsoft Edge available, then run `node tests/ui.cjs`; see [Verification](docs/verification.md). Playwright is not a runtime dependency and is not bundled in the product.
 
 ## Read the project
 
@@ -26,10 +66,19 @@ The first device platform, technology stack, deployment model, and license remai
 | [Roadmap](docs/roadmap.md) | Staged delivery, acceptance evidence, unresolved decisions, and risks |
 | [Existing tools](docs/existing-tools.md) | Representative source-backed comparison and integration boundaries |
 | [Decision records](docs/adr/README.md) | Decision process, template, and initial direction |
+| [Supported formats](docs/supported-formats.md) | Exact normalized fields, format boundaries and source documentation |
+| [Getting started](GETTING_STARTED.md) | Launch, imports, evidence handling, backups and cleanup |
+| [Verification](docs/verification.md) | Executed checks, package traceability and live-lab limits |
+| [Live validation](docs/live-validation.md) | Restored connector, actual input coverage, workflow checks and the fault corrected |
+| [Native web setup](docs/web-tools.md) | Collection, interception/browser dependencies, scope and recovery |
+| [Capability matrix](docs/native-web-coverage.md) | Six areas, exact checks, broader inventory and unfinished acceptance |
+| [Native verification](docs/native-web-verification.md) | Actual local/live/package evidence and limits |
+| [Public vulnerability scans](docs/vulnerability-scans.md) | Sources, matching limits, public-query privacy, inventory and direct findings |
+| [Operator workflow](docs/operator-workflow.md) | Discovery, tool finding, context handoffs and keyboard/mobile behavior |
 | [Agent instructions](AGENTS.md) | Rules for future automated contributors |
 
 ## Licensing and sensitive material
 
-No open-source license has been selected or granted by this repository. The owner must decide licensing before public distribution or external contribution terms are settled. Build original behavior; supported integrations and code reuse require separate compatibility review.
+The original code is **public source with all rights reserved**, as selected by the owner. No open-source license is granted; public visibility does not grant broad reuse or redistribution rights. See [LICENSE](LICENSE). Third-party components retain their own licenses and notices. External contribution terms require a separate owner decision.
 
 Never commit real engagement evidence, device configurations, credentials, or client identifiers here. A private repository is not an evidence vault. Use synthetic fixtures when implementation begins; see [Security](SECURITY.md).
