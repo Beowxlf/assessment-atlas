@@ -14,6 +14,7 @@ from .importers import ImportProblem
 from .web_evidence import web_url
 from .store import now
 from . import __version__
+from .execution import ExecutionChanged
 
 MAX_BODY=65536
 METHODS=('GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS')
@@ -51,7 +52,7 @@ class Scope:
         excluded=config.get('exclude_paths',[])
         if not isinstance(excluded,list) or len(excluded)>30:raise ImportProblem('At most thirty excluded path prefixes are supported.')
         self.excluded=[path_key(p) for p in excluded]
-        self.atlas_port=atlas_port;self.pins={};self.forbidden_ports={atlas_port}
+        self.atlas_port=atlas_port;self.pins={};self.forbidden_ports={atlas_port};self.execution_guard=None
         self.check(self.start)
         if resolve:
             for allowed in self.origins:
@@ -78,6 +79,23 @@ class Scope:
         addresses=[ipaddress.ip_address(a) for a in self.pins.get(origin,[])]
         if any((a.ipv4_mapped or a).is_loopback if isinstance(a,ipaddress.IPv6Address) else a.is_loopback for a in addresses) and web_url(url)[4] in self.forbidden_ports:raise ImportProblem('Atlas and interception control listeners cannot be targets.')
         return origin
+
+    def check_execution(self):
+        if self.execution_guard:self.execution_guard.check()
+
+    def bind_socket(self,sock,address):
+        if self.execution_guard:self.execution_guard.bind_socket(sock,address)
+
+    def connect(self,address,port,timeout=5):
+        self.check_execution()
+        if not self.execution_guard or self.execution_guard.proof['interface']=='system':
+            return socket.create_connection((address,port),timeout)
+        sock=socket.socket(socket.AF_INET6 if ':' in address else socket.AF_INET,socket.SOCK_STREAM)
+        try:
+            sock.settimeout(timeout);self.bind_socket(sock,address)
+            sock.connect((address,port,0,0) if ':' in address else (address,port))
+            return sock
+        except Exception:sock.close();raise
 
     def summary(self):
         return {'origins':self.origins,'excluded_paths':self.excluded,'resolved_addresses':self.pins,'upstream_tls':'hostname and CA validated','http_version':self.protocol,'custom_ca_sha256':self.ca_sha256}
@@ -106,10 +124,10 @@ def request_headers(value):
 
 
 class PinnedConnection(http.client.HTTPConnection):
-    def __init__(self,host,port,address,tls=None,timeout=5):
-        super().__init__(host,port,timeout=timeout);self.address=address;self.tls=tls
+    def __init__(self,host,port,address,tls=None,timeout=5,scope=None):
+        super().__init__(host,port,timeout=timeout);self.address=address;self.tls=tls;self.scope=scope
     def connect(self):
-        self.sock=socket.create_connection((self.address,self.port),self.timeout)
+        self.sock=self.scope.connect(self.address,self.port,self.timeout) if self.scope else socket.create_connection((self.address,self.port),self.timeout)
         if self.tls:self.sock=self.tls.wrap_socket(self.sock,server_hostname=self.host)
 
 
@@ -129,11 +147,12 @@ class PageParser(HTMLParser):
 
 def fetch(scope,url,method='GET',headers=None,body='',timeout=5,wire=False):
     origin=scope.check(url);_,path,query,host,port=web_url(url)
+    scope.check_execution()
     if method not in METHODS:raise ImportProblem('Unsupported HTTP method.')
     if not isinstance(body,str) or len(body.encode('utf-8'))>16384:raise ImportProblem('Request body exceeds 16 KiB.')
     outbound=request_headers(headers or [])
     started=time.monotonic();event={'id':uuid.uuid4().hex,'url':url,'captured_at':now(),'request':{'method':method,'url':url,'headers':[{'name':k,'value':v} for k,v in outbound.items()],'body':body,'bytes':len(body.encode()),'body_sha256':hashlib.sha256(body.encode()).hexdigest()},'parameters':[],'links':[]}
-    conn=PinnedConnection(host,port,scope.pins[origin][0],scope.tls if origin.startswith('https:') else None,timeout)
+    conn=PinnedConnection(host,port,scope.pins[origin][0],scope.tls if origin.startswith('https:') else None,timeout,scope)
     try:
         if scope.protocol!='http1':
             from .web_protocols import exchange_h2,exchange_h3
@@ -170,6 +189,7 @@ def fetch(scope,url,method='GET',headers=None,body='',timeout=5,wire=False):
             except ImportProblem:event['redirect_in_scope']=False
             event['redirect_url']=redirected
         return (event,raw) if wire else event
+    except ExecutionChanged:raise
     except (OSError,http.client.HTTPException,ImportProblem) as exc:
         # Never leak header values, certificate paths or exception-injected content.
         event['error']='TLS validation failed' if isinstance(exc,ssl.SSLError) else str(exc) if isinstance(exc,ImportProblem) else 'Connection/HTTP read failed or timed out'

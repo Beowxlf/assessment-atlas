@@ -123,7 +123,7 @@ class LinuxTerminalTests(unittest.TestCase):
         session.stop();self.assertIsNotNone(session.process.poll());self.assertEqual(self.store.web_runs(self.workspace)[0]['state'],'stopped')
     def test_route_mismatch_does_not_start_a_scan(self):
         with patch('atlas.terminal.route_to',side_effect=ImportProblem('VPN route mismatch')):
-            with self.assertRaises(ImportProblem):self.manager.preview({'interface':'tun0','operation':{'profile':'tcp-discovery','target':'192.0.2.10'}})
+            with self.assertRaises(ImportProblem):self.manager.preview({'workspace':self.workspace,'interface':'tun0','operation':{'profile':'tcp-discovery','target':'192.0.2.10'}})
         self.assertEqual(self.store.web_runs(self.workspace),[])
 
     def wait_result(self,session):
@@ -142,8 +142,8 @@ class LinuxTerminalTests(unittest.TestCase):
                 calls.append(self.path);self.send_response(302);self.send_header('Location','http://127.0.0.1:1/outside');self.send_header('Set-Cookie','session=synthetic-private-value');self.end_headers()
         http=ThreadingHTTPServer(('127.0.0.1',0),Fixture);thread=threading.Thread(target=http.serve_forever,daemon=True);thread.start()
         try:
-            data={'interface':'lo','operation':{'profile':'http-headers','target':'127.0.0.1','url':'http://owned.example.test:'+str(http.server_port)+'/fixture','timeout':15}}
-            preview=self.manager.preview(data);data.update(authorized=True,request_id=uuid.uuid4().hex,digest=preview['digest'])
+            data={'workspace':self.workspace,'interface':'lo','operation':{'profile':'http-headers','target':'127.0.0.1','url':'http://owned.example.test:'+str(http.server_port)+'/fixture','timeout':15}}
+            preview=self.manager.preview(data,'owner');data.update(authorized=True,request_id=uuid.uuid4().hex,digest=preview['digest'],context_token=preview['context_token'])
             result=self.manager.start(self.workspace,'owner',data);session=self.manager.get(self.workspace,'owner',result['id']);run=self.wait_result(session)
             self.assertEqual(calls,['/fixture']);self.assertEqual(run['state'],'completed');self.assertEqual(run['requests'],1);self.assertEqual(len(run['import_ids']),1)
             workspace=self.store.get(self.workspace);self.assertNotIn('synthetic-private-value',json.dumps(workspace));self.assertIn('[redacted]',json.dumps(workspace));self.assertEqual(workspace['imports'][0]['intake_mode'],'host live');self.assertIn('retained on the Linux execution host',workspace['imports'][0]['raw_reference']);self.assertEqual(len(workspace['entities']),1)
@@ -158,8 +158,8 @@ class LinuxTerminalTests(unittest.TestCase):
         if not shutil.which('nmap'):self.skipTest('Nmap not installed on this Linux validation host')
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-        data={'interface':'lo','operation':{'profile':'service-enumeration','target':'127.0.0.1','ports':str(port),'timeout':15}}
-        preview=self.manager.preview(data);data.update(authorized=True,request_id=uuid.uuid4().hex,digest=preview['digest'])
+        data={'workspace':self.workspace,'interface':'lo','operation':{'profile':'service-enumeration','target':'127.0.0.1','ports':str(port),'timeout':15}}
+        preview=self.manager.preview(data,'owner');data.update(authorized=True,request_id=uuid.uuid4().hex,digest=preview['digest'],context_token=preview['context_token'])
         result=self.manager.start(self.workspace,'owner',data);session=self.manager.get(self.workspace,'owner',result['id']);run=self.wait_result(session)
         self.assertEqual(run['state'],'completed');self.assertIsNone(run['requests']);self.assertEqual(len(run['import_ids']),1)
         workspace=self.store.get(self.workspace);self.assertRegex(workspace['imports'][0]['source_version'],r'^7\.');self.assertEqual(workspace['entities'][0]['addresses'],['127.0.0.1'])

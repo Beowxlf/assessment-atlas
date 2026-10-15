@@ -18,7 +18,7 @@ class BrowserSession:
         if not Path(node).is_file():raise ImportProblem('Native browser session requires Node.js and Playwright. See docs/web-tools.md; existing browsers are unchanged.')
         environment=os.environ.copy()
         if not environment.get('ATLAS_PLAYWRIGHT_MODULE') and (dependency/'node_modules/playwright').exists():environment['ATLAS_PLAYWRIGHT_MODULE']=str(dependency/'node_modules/playwright')
-        self.proxy=Proxy(tools,workspace,{**config,'browser_owned':True});self.tools=tools;self.workspace=workspace;self.error=None;self.ipc_lock=threading.Lock();self.snapshot_lock=threading.Lock();self.snapshot_ready=threading.Event();self.snapshot_id=None;self.snapshot_cookies=[]
+        self.proxy=Proxy(tools,workspace,{**config,'browser_owned':True},review_config=config);self.tools=tools;self.workspace=workspace;self.error=None;self.ipc_lock=threading.Lock();self.snapshot_lock=threading.Lock();self.snapshot_ready=threading.Event();self.snapshot_id=None;self.snapshot_cookies=[]
         self.embedded=config.get('embedded') is True;self.action_lock=threading.Lock();self.action_ready=threading.Event();self.action_id=None;self.action_result=None;self.last_action=__import__('time').monotonic()
         try:
             flags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0

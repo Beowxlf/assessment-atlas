@@ -3,6 +3,7 @@ import base64
 import hashlib
 import json
 import os
+import secrets
 from pathlib import Path
 import signal
 import subprocess
@@ -13,32 +14,32 @@ import time
 from .host_operations import PROFILES, command, operation, plan_digest, scope_config, terminal_text
 from .importers import ImportProblem, MAX_BYTES, xml
 from .store import now
+from .execution import linux_route, ExecutionContexts
 
 
 def route_to(target, interface):
-    result=subprocess.run(['/usr/sbin/ip' if Path('/usr/sbin/ip').exists() else '/usr/bin/ip','-j','route','get',target],capture_output=True,check=True,timeout=5,text=True)
-    if len(result.stdout)>65536:raise ImportProblem('Route response exceeded limits.')
-    routes=json.loads(result.stdout)
-    if not isinstance(routes,list) or len(routes)!=1 or routes[0].get('dev')!=interface or routes[0].get('type') in ('unreachable','prohibit','blackhole'):
-        raise ImportProblem('Target route does not use the selected VPN interface. Connect the VPN on this execution host first.')
-    return {'target':target,'interface':interface,'source':str(routes[0].get('prefsrc',routes[0].get('src','unknown')))[:80]}
+    return linux_route(target,interface)
 
 
 class Terminal:
-    def __init__(self,manager,workspace,owner,config,argv=None,plan=None):
+    def __init__(self,manager,workspace,owner,config,argv=None,plan=None,expected_route=None):
         if not sys.platform.startswith('linux'):raise ImportProblem('Embedded terminals require the Linux execution host. Existing local import/web tools remain available.')
         if os.geteuid()==0:raise ImportProblem('Run Atlas as an unprivileged account; root terminals are refused.')
         import pty,fcntl,termios,struct
         self.manager,self.workspace,self.owner=manager,workspace,owner
         self.lock=threading.RLock();self.buffer=bytearray();self.offset=0;self.closed=False;self.stopping=False;self.stopped=threading.Event();self.last_seen=time.monotonic();self.started=self.last_seen
         self.plan=plan;self.route=None;self.reason='';self.exit_code=None
-        if plan:self.route=route_to(plan['target'],plan['interface'])
-        self.run=manager.store.start_web_run(workspace,'terminal-operation' if plan else 'terminal-session',{'vantage':'Atlas Linux server terminal','operation':plan or 'Interactive operator shell; scope is operator controlled.','limit':'Raw PTY/input is transient. Only explicitly selected evidence is retained; shell privileges are those of the Atlas account.'})
+        if plan:
+            self.route=route_to(plan['target'],plan['interface'])
+            if expected_route is not None and self.route!=expected_route:raise ImportProblem('Terminal route changed after review; preview again. No operation was launched.')
+        retained_plan={'vantage':'Atlas Linux server terminal','operation':plan or 'Interactive operator shell; scope is operator controlled.','limit':'Raw PTY/input is transient. Only explicitly selected evidence is retained; shell privileges are those of the Atlas account.'}
+        if plan:retained_plan['execution_context']={'host':manager.execution.host,'interface':plan['interface'],'routes':[self.route],'checked_at':now(),'route_policy':'Source/interface requested; routes/source sampled every five seconds. No strict device-binding guarantee for every external-tool operation.'}
+        self.run=manager.store.start_web_run(workspace,'terminal-operation' if plan else 'terminal-session',retained_plan)
         self.id=self.run['id'];self.cwd=manager.root/workspace/self.id;self.cwd.mkdir(parents=True,mode=0o700,exist_ok=False)
         self.artifact=self.cwd/'result.txt'
         if plan:
             descriptor=os.open(self.artifact,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(descriptor)
-            argv=command(plan,self.artifact)
+            argv=command(plan,self.artifact,self.route['source'])
         self.master,slave=pty.openpty()
         fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,100,0,0))
         environment={'PATH':'/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin','HOME':str(self.cwd),'LANG':'C.UTF-8','TERM':'xterm-256color','PS1':'atlas> '}
@@ -94,8 +95,10 @@ class Terminal:
             if self.plan:
                 try:
                     if self.artifact.stat().st_size>MAX_BYTES:return self.stop('Tool output exceeded 8 MiB; process stopped.')
-                    if current-last_route>5:route_to(self.plan['target'],self.plan['interface']);last_route=current
-                except (OSError,ValueError,subprocess.SubprocessError):return self.stop('VPN route check failed; operation stopped.')
+                    if current-last_route>5:
+                        if route_to(self.plan['target'],self.plan['interface'])!=self.route:raise ImportProblem('Route/source changed.')
+                        last_route=current
+                except (OSError,ValueError,ImportProblem,subprocess.SubprocessError):return self.stop('Execution route/interface/source check failed; operation stopped with incomplete coverage.')
             self.manager.closed.wait(.25)
             if self.manager.closed.is_set():return self.stop('Atlas stopped.')
 
@@ -134,7 +137,7 @@ class Terminal:
         self.exit_code=self.process.returncode
         try:os.close(self.master)
         except OSError:pass
-        try:self.manager.store.update_web_run(self.workspace,self.id,state='completed' if completed and not self.reason.startswith(('Result intake','Partial Nmap')) else 'partial' if completed else 'stopped',ended_at=now(),reason=self.reason,exit_code=self.exit_code)
+        try:self.manager.store.update_web_run(self.workspace,self.id,state='partial' if self.reason.startswith('Execution route/') else 'completed' if completed and not self.reason.startswith(('Result intake','Partial Nmap')) else 'partial' if completed else 'stopped',ended_at=now(),reason=self.reason,exit_code=self.exit_code)
         finally:
             with self.lock:self.closed=True
             self.stopped.set()
@@ -142,7 +145,7 @@ class Terminal:
 
 class Terminals:
     def __init__(self,store):
-        self.store=store;self.sessions={};self.lock=threading.RLock();self.closed=threading.Event();self.root=store.path.parent/'terminal-evidence'
+        self.store=store;self.sessions={};self.previews={};self.lock=threading.RLock();self.closed=threading.Event();self.root=store.path.parent/'terminal-evidence';self.execution=ExecutionContexts(store)
 
     def capabilities(self):
         import shutil
@@ -171,14 +174,30 @@ class Terminals:
                 return previous.status()
             if len(self.sessions)>=200:raise ImportProblem('Terminal session retention limit reached; restart Atlas to discard closed buffers.')
             if len([s for s in self.sessions.values() if not s.closed])>=2:raise ImportProblem('At most two active terminal sessions; stop one first.')
-            session=Terminal(self,workspace,owner,data,plan=plan);session.request_id=request;session.request_fingerprint=request_fingerprint;self.sessions[session.id]=session
+            reviewed_route=None
+            if plan:
+                token=data.get('context_token')
+                if not isinstance(token,str) or len(token)>100:raise ImportProblem('Preview the current terminal execution context before starting.')
+                reviewed=self.previews.pop(token,None)
+                if not reviewed or reviewed['expires']<=time.monotonic() or reviewed['workspace']!=workspace or reviewed['owner']!=owner or reviewed['host_id']!=self.execution.host['id'] or reviewed['digest']!=request_fingerprint:
+                    raise ImportProblem('Terminal execution review expired, was used or belongs to a different context. Preview again.')
+                reviewed_route=reviewed['route']
+                if reviewed_route!=route_to(plan['target'],plan['interface']):raise ImportProblem('Terminal route/source changed after review; preview again. No operation was launched.')
+            session=Terminal(self,workspace,owner,data,plan=plan,expected_route=reviewed_route);session.request_id=request;session.request_fingerprint=request_fingerprint;self.sessions[session.id]=session
             self.store.update_web_run(workspace,session.id,requests=1 if plan and plan['profile']=='http-headers' else None)
             return session.status()
 
-    def preview(self,data):
+    def preview(self,data,owner='local'):
+        workspace=data.get('workspace');self.store.get(workspace)
         scope=scope_config({'targets':[data.get('operation',{}).get('target')],'profiles':list(PROFILES),'interface':data.get('interface','tun0')})
         plan=operation(data.get('operation'),scope)
-        return {'plan':plan,'digest':plan_digest(plan),'vantage':'Atlas Linux server','route':route_to(plan['target'],plan['interface']) if sys.platform.startswith('linux') else None,'limits':PROFILES[plan['profile']]['description']}
+        route=route_to(plan['target'],plan['interface']) if sys.platform.startswith('linux') else None
+        token=secrets.token_urlsafe(32);digest=plan_digest(plan)
+        with self.lock:
+            self.previews={key:row for key,row in self.previews.items() if row['expires']>time.monotonic()}
+            if len(self.previews)>=64:raise ImportProblem('Too many pending terminal reviews; wait for a review to expire.')
+            self.previews[token]={'workspace':workspace,'owner':owner,'host_id':self.execution.host['id'],'digest':digest,'route':route,'expires':time.monotonic()+60}
+        return {'plan':plan,'digest':digest,'context_token':token,'expires_in':60,'host':self.execution.host.copy(),'vantage':'Atlas Linux server','route':route,'limits':PROFILES[plan['profile']]['description']}
 
     def active(self,workspace):return any(s.workspace==workspace and not s.closed for s in self.sessions.values())
     def delete_workspace(self,workspace,confirmation):
@@ -196,6 +215,7 @@ class Terminals:
                     with session.lock:session.buffer.clear()
                     del self.sessions[key]
     def close_owner(self,owner):
+        with self.lock:self.previews={key:row for key,row in self.previews.items() if row['owner']!=owner}
         for session in list(self.sessions.values()):
             if session.owner==owner:
                 session.stop('Operator signed out.')
@@ -203,4 +223,5 @@ class Terminals:
                 self.sessions.pop(session.id,None)
     def shutdown(self):
         self.closed.set()
+        with self.lock:self.previews.clear()
         for session in list(self.sessions.values()):session.stop('Atlas stopped.')

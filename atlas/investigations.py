@@ -21,7 +21,7 @@ DECISIONS = ('undecided', 'supported', 'refuted', 'inconclusive')
 RELATIONS = ('supporting', 'contradicting', 'context')
 TEXT_LIMITS = {'question': 1000, 'objective': 4000, 'rationale': 8000,
                'next_action': 2000, 'access_role': 120, 'access_reference': 100}
-EDITABLE = set(TEXT_LIMITS) | {'subject', 'status', 'decision', 'access_mode', 'evidence_refs'}
+EDITABLE = set(TEXT_LIMITS) | {'subject', 'status', 'decision', 'access_mode', 'evidence_refs', 'execution_context'}
 PROOF_LIMITS = ('Operator-authored finding, not independently validated. Supporting, '
                 'contradicting and contextual evidence retain their original claim levels. '
                 'A completed run or supported decision does not establish exploitation, '
@@ -118,9 +118,11 @@ def event(workspace, item, action, fields=()):
 
 def values(workspace, data, previous=None):
     result = {k: '' for k in TEXT_LIMITS}
-    result.update(subject=None, status='open', decision='undecided', access_mode='anonymous', evidence_refs=[])
+    result.update(subject=None, status='open', decision='undecided', access_mode='anonymous', evidence_refs=[], execution_context=None)
     if previous:
-        result.update({k: copy.deepcopy(previous[k]) for k in EDITABLE})
+        result.update({k: copy.deepcopy(previous.get(k, result.get(k))) for k in EDITABLE})
+    if 'execution_context' in data:
+        result['execution_context'] = execution_expectation(data['execution_context'])
     for field in TEXT_LIMITS:
         if field in data:
             result[field] = text(data[field], field, required=field == 'question')
@@ -149,7 +151,7 @@ def save(workspace, data):
     if data.get('id'):
         item = get(workspace, data)
         updates = values(workspace, data, item)
-        changed = [key for key, value in updates.items() if item[key] != value]
+        changed = [key for key, value in updates.items() if item.get(key) != value]
         if changed:
             item.update(updates)
             event(workspace, item, 'updated', changed)
@@ -184,6 +186,41 @@ def safe_url(value):
         return None
 
 
+def execution_expectation(value):
+    """An operator expectation, never a caller assertion of measured routes."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {'host_id', 'interface'}:
+        raise ImportProblem('Execution context requires only a host ID and expected interface.')
+    if not isinstance(value['host_id'], str) or not re.fullmatch(r'[0-9a-f]{32}', value['host_id']):
+        raise ImportProblem('Select the execution host reported by this Atlas server.')
+    if not isinstance(value['interface'], str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', value['interface']):
+        raise ImportProblem('Choose an expected interface or the explicit system route policy.')
+    return copy.deepcopy(value)
+
+
+def execution_snapshot(value):
+    """Allowlisted historical measurements; no preview/session capability survives."""
+    if not isinstance(value, dict):
+        return None
+    result = {}
+    for key in ('host_id', 'host_name', 'platform', 'interface', 'checked_at', 'route_policy', 'policy'):
+        if isinstance(value.get(key), str):
+            result[key] = clean(value[key])[:200]
+    host = value.get('host')
+    if isinstance(host, dict):
+        result['host'] = {key: clean(host[key])[:200] for key in ('id', 'name', 'platform') if isinstance(host.get(key), str)}
+    result['routes'] = []
+    for route in value.get('routes', [])[:80] if isinstance(value.get('routes'), list) else []:
+        if isinstance(route, dict):
+            retained = {key: clean(route[key])[:200] for key in ('target', 'interface', 'source', 'gateway', 'table') if isinstance(route.get(key), str)}
+            for key in ('ifindex', 'table'):
+                if isinstance(route.get(key), int) and not isinstance(route[key], bool) and 0 <= route[key] <= 4294967295:
+                    retained[key] = route[key]
+            result['routes'].append(retained)
+    return result
+
+
 def run_snapshot(run):
     """Strictly derive a snapshot from retained server metadata, not client config."""
     snapshot = {key: run.get(key) for key in ('kind', 'state', 'started_at', 'ended_at')}
@@ -193,10 +230,17 @@ def run_snapshot(run):
             snapshot[key] = value
     state = run.get('state')
     snapshot['completeness'] = ('in progress' if state in ('queued', 'running') else
-                                'incomplete' if state in ('partial', 'failed', 'interrupted', 'cancelled', 'stopped') else
+                                'incomplete' if state in ('partial', 'failed', 'interrupted', 'cancelled', 'stopped', 'blocked', 'timeout') else
                                 'completed run; interpretation required' if state == 'completed' else 'unknown')
     snapshot['proof_limits'] = 'Run state is execution metadata, not a negative test or validated impact. Authentication must be re-established before another run.'
     plan = run.get('plan') if isinstance(run.get('plan'), dict) else {}
+    execution = execution_snapshot(plan.get('execution_context'))
+    if execution:
+        snapshot['execution_context'] = execution
+    if isinstance(plan.get('resumes_run_id'), str) and re.fullmatch(r'[0-9a-f]{32}', plan['resumes_run_id']):
+        snapshot['resumes_run_id'] = plan['resumes_run_id']
+    if state not in ('queued', 'running', 'completed'):
+        snapshot['reason'] = clean(str(run.get('reason', '')))[:1000]
     configured_auth = plan.get('authentication') if isinstance(plan.get('authentication'), dict) else {}
     observed_auth = run.get('authentication') if isinstance(run.get('authentication'), dict) else {}
     mode = observed_auth.get('mode', configured_auth.get('mode', 'unknown'))
@@ -221,6 +265,9 @@ def run_snapshot(run):
     origins = plan.get('origins')
     if isinstance(origins, list):
         context['origins'] = [url for value in origins[:16] if (url := safe_url(value))]
+    elif isinstance(origins, dict):
+        context['origins'] = [url for origin, prefix in list(origins.items())[:16]
+                              if isinstance(origin, str) and isinstance(prefix, str) and (url := safe_url(origin + prefix))]
     # A typed terminal operation is retained as a small semantic plan, never argv,
     # environment, shell input, arbitrary headers or response content.
     operation = plan.get('operation')
@@ -263,6 +310,49 @@ def link_run(workspace, data):
         item['tests'].append({'run_id': run['id'], 'linked_at': now(), 'snapshot': snapshot})
         event(workspace, item, 'test linked', ['tests'])
     return item
+
+
+def resume_source(workspace, item, run_id):
+    if not isinstance(run_id, str) or run_id not in {test['run_id'] for test in item['tests']}:
+        raise ImportProblem('Choose an incomplete run linked to this investigation.')
+    run = next((row for row in workspace.get('web_runs', []) if row['id'] == run_id), None)
+    if not run or run.get('state') not in ('partial', 'failed', 'interrupted', 'cancelled', 'stopped', 'blocked', 'timeout'):
+        raise ImportProblem('Only an incomplete, stopped run can be prepared again. Stop active tests first.')
+    if run.get('kind') not in ('request', 'crawl', 'payload', 'scanner', 'matrix'):
+        raise ImportProblem('Prepare this tool manually from its retained evidence. Automatic shell, proxy and socket replay is unavailable.')
+    return run
+
+
+def resume_preparation(workspace, data):
+    """A nonmutating preparation, with no executable request or restored authority."""
+    request(data, {'id', 'revision', 'run_id'})
+    item = get(workspace, data)
+    if item['status'] == 'closed':
+        raise ImportProblem('Reopen this investigation before preparing another test.')
+    run = resume_source(workspace, item, data.get('run_id'))
+    snapshot = run_snapshot(run)
+    context = snapshot['context']
+    config = {key: context[key] for key in ('url', 'max_requests', 'max_seconds', 'delay_ms', 'max_depth') if key in context}
+    if not config.get('url'):
+        raise ImportProblem('The original run has no reviewed URL. Prepare a fresh scoped test manually from its evidence.')
+    from .web_transport import Scope, path_key
+    from .web_evidence import web_url
+    origin, path, *_ = web_url(config['url'])
+    plan = run.get('plan') if isinstance(run.get('plan'), dict) else {}
+    origins = plan.get('origins', {})
+    prefix = origins.get(origin) if isinstance(origins, dict) else None
+    config['path_prefix'] = path_key(prefix if isinstance(prefix, str) else path)
+    config['exclude_paths'] = copy.deepcopy(plan.get('excluded_paths', []))
+    config['extra_origins'] = []
+    # Validate the retained subset without resolving names or opening sockets.
+    reviewed = Scope({**config, 'authorized': True}, resolve=False)
+    reviewed.check(config['url'])
+    return {'resume_preparation': {'kind': run['kind'], 'config': config,
+            'resumes_run_id': run['id'], 'limitations': [
+                'A new bounded run will be linked to the original; completed requests are not replayed automatically.',
+                'Review the exact URL, scope and test settings. Query strings, bodies, headers and payloads were not restored.',
+                'Check the current execution host and route, then establish authentication and confirm authority again.',
+                'The original incomplete run and its evidence remain unchanged.']}}
 
 
 def link_evidence(workspace, data):
@@ -323,7 +413,8 @@ def next_question(workspace, data):
     following = save(workspace, {'question': question, 'objective': data.get('objective', item['objective']),
                                   'subject': data.get('subject', item['subject']),
                                   'access_mode': item['access_mode'], 'access_role': item['access_role'],
-                                  'access_reference': item['access_reference']})
+                                  'access_reference': item['access_reference'],
+                                  'execution_context': item.get('execution_context')})
     item['next_investigation_ids'].append(following['id'])
     event(workspace, item, 'next question created', ['next_investigation_ids'])
     return following
@@ -369,8 +460,13 @@ def redact(workspace):
     for item in workspace.get('investigations', []):
         for field in TEXT_LIMITS:
             item[field] = '[withheld]'
+        item['execution_context'] = '[withheld]'
         for test in item['tests']:
             test['snapshot']['context'] = '[withheld]'
+            if 'execution_context' in test['snapshot']:
+                test['snapshot']['execution_context'] = '[withheld]'
+            if 'reason' in test['snapshot']:
+                test['snapshot']['reason'] = '[withheld]'
     for record in workspace['records']:
         if 'structured_evidence_refs' in record:
             # Opaque internal IDs and relationship labels are safe; free text is

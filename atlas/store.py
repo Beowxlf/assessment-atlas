@@ -149,7 +149,7 @@ class Store:
             runs.append(run);w['history'].append({'at':now(),'action':'web run scheduled','detail':kind,'run_id':run['id']});self._save(w)
             return copy.deepcopy(run)
 
-    def start_investigation_run(self, workspace, kind, plan, investigation_id):
+    def start_investigation_run(self, workspace, kind, plan, investigation_id, resumes_run_id=None):
         """Persist a native run and its investigation link in one write.
 
         Collector scope/authentication validation happens before this method. If
@@ -160,6 +160,9 @@ class Store:
             item = investigations.get(w, {'id': investigation_id}, check_revision=False)
             if item['status'] == 'closed':
                 raise ImportProblem('Reopen this investigation before starting another test.')
+            if resumes_run_id is not None:
+                investigations.resume_source(w, item, resumes_run_id)
+                plan = {**plan, 'resumes_run_id': resumes_run_id}
             runs = w.setdefault('web_runs', [])
             if len(runs) >= 200:
                 raise ImportProblem('This workspace has 200 retained web runs; use a new workspace for more runs.')
@@ -204,6 +207,10 @@ class Store:
 
     def investigation_next(self, workspace, data):
         return self._investigation_mutation(workspace, data, investigations.next_question)
+
+    def investigation_resume(self, workspace, data):
+        with self.lock:
+            return investigations.resume_preparation(self.get(workspace), data)
 
     def capture_selection(self,workspace,data,context=None):
         """An operator-selected excerpt attached to a reviewed existing identity."""
@@ -335,7 +342,7 @@ class Store:
             for test in investigation['tests']:
                 if test['run_id'] in runs:
                     latest = investigations.run_snapshot(runs[test['run_id']])
-                    for key in ('state', 'ended_at', 'requests', 'skipped', 'findings', 'completeness', 'authentication'):
+                    for key in ('state', 'ended_at', 'requests', 'skipped', 'findings', 'completeness', 'authentication', 'reason'):
                         if key in latest:
                             test['snapshot'][key] = latest[key]
         parents = {e["id"]: e["id"] for e in w["entities"]}
@@ -413,6 +420,8 @@ class Store:
             investigations.redact(w)
             for run in w.get('web_runs',[]):
                 run['plan']='[withheld]';run['errors']=['[withheld]' for _ in run.get('errors',[])];run['reason']='[withheld]'
+                for field in ('route','execution_context'):
+                    if field in run:run[field]='[withheld]'
                 for row in run.get('coverage', []):
                     row['identity']='[withheld]';row['unknown_details']='[withheld]'
             for i, e in enumerate(w["entities"]):
@@ -453,7 +462,7 @@ def html_report(w):
     body = table("Inventory", w["nodes"], ["id", "label", "kind", "addresses"])
     body += table("Findings (source assertions)", w["findings"], ["subject", "title", "severity", "validation", "status", "description", "import_id", "location"])
     body += table("Assessment activity", w["records"], ["kind", "title", "status", "subject", "details", "evidence_refs", "at"])
-    body += table("Investigations and decisions", w.get('investigations', []), ['id', 'question', 'objective', 'subject', 'status', 'decision', 'rationale', 'next_action', 'access_mode', 'access_role', 'access_reference', 'evidence_refs', 'tests', 'finding_record_id', 'next_investigation_ids', 'revision'])
+    body += table("Investigations and decisions", w.get('investigations', []), ['id', 'question', 'objective', 'subject', 'status', 'decision', 'rationale', 'next_action', 'access_mode', 'access_role', 'access_reference', 'execution_context', 'evidence_refs', 'tests', 'finding_record_id', 'next_investigation_ids', 'revision'])
     body += table("Native scans and collection limits", w.get('web_runs',[]), ['id','kind','state','started_at','ended_at','requests','software_identities','message_count','websocket_messages','interactions','findings','oob_interactions','oob_import_ids','skipped','plan','coverage','public_snapshots','errors','reason','import_ids'])
     body += table("Evidence and typed relationships", w["observations"], ["id", "subject", "target", "kind", "status", "basis", "value", "collected_at", "vantage", "import_id", "location"])
     body += table("Sources and provenance", w["imports"], ["id", "filename", "source", "source_version", "intake_mode", "adapter_version", "sha256", "imported_at", "raw_reference", "warnings"])

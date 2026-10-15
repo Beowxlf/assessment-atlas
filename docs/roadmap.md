@@ -72,3 +72,7 @@ The owner requested public vulnerability scans and a simpler operator workflow. 
 ## Hosted operator extension — 0.6.0
 
 The owner requested and received opt-in private Ubuntu hosting, an embedded execution terminal/browser and evidence-to-finding handoff; [ADR 0007](adr/0007-hosted-operator-console.md) records the resulting single-operator trust model. [Pentest audit](pentest-workflow-audit.md) separates delivered fixture workflows from the unfinished host connector, real HTB route/target trial, independent scanner accuracy, large-inventory pagination, broader clients and operator/tenancy qualification. Earlier hosting exclusions describe prior releases.
+
+## Dependable execution extension — 0.8.0
+
+The owner requested the next investigation milestone: correct host, VPN route and authenticated session, plus safe interrupted-test continuation. [ADR 0009](adr/0009-dependable-execution-context.md) records the implemented installation identity, explicit host/interface expectations, transient exact-operation review, session binding and preserved incomplete outcomes. [Execution context](execution-context.md) distinguishes strict native socket checks, configured external-tool sampling and manual shell/embedded-browser limits. No connector or real HTB VPN profile is introduced. The release receipt records actual regression, Ubuntu and restart qualification; human productivity and real HTB gates remain open.

@@ -8,7 +8,7 @@ The initial audience is the solo assessor working through authorized HTB labs an
 
 This document proposes priorities. It does not change the accepted architecture, implement capabilities, or authorize target activity. The [existing roadmap](roadmap.md) preserves delivery history and original acceptance gates.
 
-Implementation update: [0.7.0 resumable investigations](investigations.md) implements the first functional slice. Productivity, operator-trial and later milestone gates remain open; implementation does not establish those outcomes.
+Implementation update: [0.7.0 resumable investigations](investigations.md) implements the first functional slice. Version 0.8.0 implements the next [execution-context slice](execution-context.md), including reviewed new-run continuation. Productivity, operator-trial and later milestone gates remain open; implementation does not establish those outcomes.
 
 ## The product decision
 

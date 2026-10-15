@@ -1,5 +1,13 @@
 # Verification and delivery limits — historical 0.2.0 baseline
 
+## Dependable execution context — 0.8.0
+
+October 15, 2026: the implementation-stage Windows suite passed 170 tests with six Linux-only skips. Focused execution/API/Edge checks exercised exact-operation review, host/scope/interface/source/gateway changes, interface recreation/down state, expiry/reuse, cross-workspace/operator and selected-session binding, no target TCP connection during preview, cancelled/interrupted evidence, reviewed new-run lineage and restart loss of authority. Final review additionally corrected preserved resume path/exclusions, default terminal-route redaction and the complete 80-address proof bound; the eight continuation tests passed with those cases.
+
+The existing investigation Edge workflow and new execution-context workflow passed with desktop/390px screenshots and no page errors. A separate unprivileged Ubuntu socket spike bound both `lo` and source `127.0.0.1` for an actual owned ephemeral HTTP exchange. This establishes that the installed host supports the native binding primitive, not a real HTB route. Exact-package Windows/Ubuntu suites, all browser regressions, private HTTPS deployment and actual service-restart readback are recorded in the final versioned release receipt; these later checks are distinct from implementation-stage results above.
+
+See [execution behavior and limits](execution-context.md) and [ADR 0009](adr/0009-dependable-execution-context.md). Real HTB VPN/target qualification, stronger external-tool isolation, outbound Kali/Parrot execution, multi-role object authorization and human productivity trials remain separate acceptance work. Main SQLite schema remains 2 and investigation metadata version remains 1.
+
 ## Resumable investigations — 0.7.0
 
 October 14, 2026: source verification ran 142 Python tests on Windows/Python 3.12.14 with the pinned optional protocol engines; all eligible cases passed, with six Linux PTY/profile cases skipped for platform. Sixteen investigation-domain tests and six real-process API tests cover additive old-data compatibility, durable save/restart, structured source references, optimistic concurrency, prepared-context revisions, safe snapshots, atomic run linkage, incomplete results, transient authentication, finding idempotency and redacted/filtered reports.

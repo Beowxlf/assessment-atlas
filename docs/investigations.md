@@ -2,6 +2,8 @@
 
 Version 0.7.0 connects a question, its tests, selected evidence, interpretation and next action inside the existing assessment. It supports authenticated native audits and a direct handoff into a manual finding. Negative and inconclusive investigations can close without creating findings.
 
+Version 0.8.0 adds [dependable execution context](execution-context.md): saved host/interface expectations, a fresh measured route/session check before linked tests, and reviewed new-run continuation of incomplete tests. Existing questions retain their prior fields; review and save execution context before launching their next test. **Prepare again** restores no credentials, request bodies or authority.
+
 ## Work through a question
 
 1. Choose an assessment and open **Investigations**. Select **New investigation**, enter the question, and optionally select its existing identity, objective and boundaries.

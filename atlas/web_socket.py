@@ -14,6 +14,7 @@ from .importers import ImportProblem
 from .store import now
 from .web_evidence import safe_url,web_url
 from .web_transport import Scope,fetch,request_headers
+from .execution import ExecutionChanged
 
 MAX_MESSAGE=65536
 
@@ -36,7 +37,7 @@ class SocketClient:
     def __init__(self,scope,url,headers=None,timeout=5):
         wsproto,events=library();self.events=events;self.url=http_url(url);origin=scope.check(self.url);_,path,query,host,port=web_url(self.url);self.scope=scope;self.ws=wsproto.WSConnection(wsproto.ConnectionType.CLIENT);self.sock=None;self.lock=threading.RLock();self.buffer=[];self.closed=False;self.total=0;started=time.monotonic();self.deadline=started+300
         outbound=request_headers(headers or []);protocols=next((v.split(',') for k,v in outbound.items() if k.lower()=='sec-websocket-protocol'),[]);extra=[(k.encode(),v.encode()) for k,v in outbound.items() if k.lower() not in ('connection','accept-encoding','sec-websocket-key','sec-websocket-version','sec-websocket-extensions','sec-websocket-protocol')]
-        self.sock=socket.create_connection((scope.pins[origin][0],port),timeout)
+        self.sock=scope.connect(scope.pins[origin][0],port,timeout)
         try:
             if origin.startswith('https:'):self.sock=scope.tls.wrap_socket(self.sock,server_hostname=host)
             self.sock.settimeout(timeout);request=self.ws.send(events.Request(host=urlsplit(self.url).netloc,target=path+('?' + query if query else ''),extra_headers=extra,subprotocols=[p.strip() for p in protocols]));self.sock.sendall(request);accepted=None
@@ -55,6 +56,7 @@ class SocketClient:
             self.subprotocol=accepted.subprotocol
         except Exception:self.sock.close();raise
     def send(self,data,binary=False):
+        self.scope.check_execution()
         raw=data if binary else data.encode('utf-8')
         if len(raw)>MAX_MESSAGE:raise ImportProblem('WebSocket message exceeds 64 KiB.')
         with self.lock:
@@ -63,6 +65,7 @@ class SocketClient:
     def receive(self):
         parts=[];size=0;binary=False
         while not self.closed:
+            self.scope.check_execution()
             if time.monotonic()>=self.deadline:raise ImportProblem('WebSocket connection time limit reached.')
             with self.lock:events=self.buffer;self.buffer=[]
             if not events:
@@ -107,11 +110,14 @@ class WebSocketSession:
         from .web_tools import bounded_int
         from .web_auth import AuthSession
         self.tools=tools;self.workspace=workspace;self.config=tools.session_config(workspace,config);self.scope=Scope(self.config,tools.port);self.scope.protocol='http1';tools.block_controls(self.scope);self.url=http_url(config.get('ws_url',''));self.scope.check(self.url);self.lock=threading.RLock();self.closed=False;self.messages=[];self.saved_messages={};self.count=0;self.message_count=0;self.imports=[];self.auth=None;self.client=None;self.error=None
+        proof=tools.bind_execution(workspace,self.scope,self.config,kind='websocket')
+        if proof:self.config['vantage']=proof['host']['name']+' · '+proof['interface']
         self.limit=bounded_int(config,'max_requests',100,1,200);self.seconds=bounded_int(config,'max_seconds',60,1,300);self.started=time.monotonic()
         self.findings=0
         if self.config.get('auth'):self.auth=AuthSession(self.scope,self.config['auth'])
         self.http_requests=0
         self.run=tools.store.start_web_run(workspace,'websocket',{'url':safe_url(self.url),'scope':self.scope.summary(),'max_operations':self.limit,'max_seconds':self.seconds,'authenticated_handshake':bool(self.auth),'retention':'raw recent messages transient until channel closes; selected evidence redaction applies'})
+        if proof:tools.store.update_web_run(workspace,self.run['id'],plan={**self.run['plan'],'execution_context':proof})
         tools.store.update_web_run(workspace,self.run['id'],state='running')
         def budget():
             if self.count>=self.limit or time.monotonic()-self.started>=self.seconds:raise ImportProblem('WebSocket authentication/handshake exhausted the shared budget.')
@@ -122,7 +128,7 @@ class WebSocketSession:
                 event=fetch(self.scope,url,method,[] if anonymous else self.auth.headers(url,headers),body,timeout=min(5,max(.1,self.seconds-(time.monotonic()-self.started))));self.count+=1;self.http_requests=self.count
                 if not anonymous:self.auth.absorb(event)
                 event['authentication']={'mode':'anonymous control' if anonymous else 'session credentials','session_verified':self.auth.verified,'purpose':purpose,'generation':self.auth.generation}
-                self.imports.append(tools.capture(workspace,self.auth.scrub(event),'web-workbench',{**config,'retain_body':False}));return event
+                self.imports.append(tools.capture(workspace,self.auth.scrub(event),'web-workbench',{**self.config,'retain_body':False}));return event
             if self.auth:
                 if self.auth.valid(request(self.auth.guard,anonymous=True)):raise ImportProblem('Session marker is visible anonymously.')
                 self.auth.login(request)
@@ -130,8 +136,10 @@ class WebSocketSession:
             self.client=SocketClient(self.scope,config['ws_url'],self.auth.headers(self.url,config.get('headers',[])) if self.auth else config.get('headers',[]),timeout=min(5,max(.1,self.seconds-(time.monotonic()-self.started))))
             self.client.deadline=self.started+self.seconds
             if self.auth:self.client.handshake['authentication']={'mode':'verified handshake session','session_verified':True,'purpose':'WebSocket handshake; message authorization remains unverified','generation':self.auth.generation}
-            self.imports.append(tools.capture(workspace,self.auth.scrub(self.client.handshake) if self.auth else self.client.handshake,'web-workbench',config))
+            self.imports.append(tools.capture(workspace,self.auth.scrub(self.client.handshake) if self.auth else self.client.handshake,'web-workbench',self.config))
             tools.store.update_web_run(workspace,self.run['id'],state='running',requests=self.http_requests,import_ids=self.imports)
+        except ExecutionChanged as exc:
+            self.error=str(exc);self.close('Execution context lost; incomplete coverage');raise
         except Exception:
             self.closed=True
             if self.client:self.client.close()
@@ -162,6 +170,8 @@ class WebSocketSession:
                 result=self.client.receive()
                 if result and result.get('closed'):self.close('Peer closed WebSocket');break
                 if result:self.capture('from server',result['data'],result['binary'])
+        except ExecutionChanged as exc:
+            if not self.closed:self.error=str(exc)
         except Exception:
             if not self.closed:self.error='WebSocket closed, timed out or exceeded protocol/message limits'
         finally:self.close('WebSocket ended or reached its message/time limit')

@@ -69,8 +69,10 @@ class ProxyServer(ThreadingHTTPServer):
 
 
 class Proxy:
-    def __init__(self,tools,workspace,config):
+    def __init__(self,tools,workspace,config,review_config=None):
         self.tools=tools;self.workspace=workspace;self.config=config;self.scope=Scope(config,tools.port);self.certificates=LocalCertificates();self.lock=threading.RLock();self.pending={};self.closed=False;self.count=0;self.rejected=0;self.errors=[];self.intercept=config.get('intercept') is True;self.token=secrets.token_urlsafe(32)
+        proof=tools.bind_execution(workspace,self.scope,review_config or config,kind='browser' if config.get('browser_owned') else 'proxy')
+        if proof:self.config={**config,'vantage':proof['host']['name']+' · '+proof['interface']}
         embedded=config.get('embedded') is True and config.get('browser_owned') is True
         self.limit=bounded_int(config,'max_requests',100,1,500 if embedded else 200);self.duration=bounded_int(config,'max_seconds',300,1,1800 if embedded else 300);port=bounded_int(config,'proxy_port',8877,1024,65535)
         self.intercept_response=config.get('intercept_response') is True
@@ -87,12 +89,17 @@ class Proxy:
         except OSError:raise ImportProblem('Proxy port is occupied; select a different loopback port.') from None
         self.server.daemon_threads=True;self.server.proxy=self;self.scope.forbidden_ports.add(port)
         self.run=tools.store.start_web_run(workspace,'browser' if config.get('browser_owned') else 'proxy',{'scope':self.scope.summary(),'port':port,'max_requests':self.limit,'max_seconds':self.duration,'capture_mode':'redacted' if config.get('retain_body') else 'metadata','CA_sha256':self.certificates.fingerprint})
+        if proof:tools.store.update_web_run(workspace,self.run['id'],plan={**self.run['plan'],'execution_context':proof})
         self.started=time.monotonic();tools.store.update_web_run(workspace,self.run['id'],state='running')
         threading.Thread(target=self.server.serve_forever,daemon=True).start()
         threading.Thread(target=self._deadline,daemon=True).start()
 
     def _deadline(self):
-        while not self.closed and time.monotonic()-self.started<self.duration:time.sleep(.25)
+        while not self.closed and time.monotonic()-self.started<self.duration:
+            try:self.scope.check_execution()
+            except ImportProblem:
+                self.errors.append('Execution route/session context changed; completed evidence retained.');self.close('Execution context lost; incomplete coverage');return
+            time.sleep(.25)
         if not self.closed:self.close('Time limit reached')
 
     def status(self,include_token=False):

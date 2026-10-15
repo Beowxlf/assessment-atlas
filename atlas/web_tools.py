@@ -15,6 +15,7 @@ from .importers import ImportProblem,clean
 from .store import now
 from .web_transport import Scope,fetch,METHODS
 from .web_evidence import safe_url
+from .execution import ExecutionContexts, ExecutionChanged
 
 
 def bounded_int(config,key,default,low,high):
@@ -43,7 +44,26 @@ def passive_checks(event):
 
 
 class WebTools:
-    def __init__(self,store,port):self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={};self.sockets={};self.receivers={}
+    def __init__(self,store,port):
+        self.store=store;self.port=port;self.lock=threading.RLock();self.jobs={};self.volatile={};self.proxies={};self.browsers={};self.sessions={};self.sockets={};self.receivers={}
+        self.execution=ExecutionContexts(store);self.execution.session_validator=self.session_config;self.execution.atlas_port=port
+
+    def session_binding(self,workspace,config):
+        scope=Scope(config,self.port,resolve=False)
+        role,reference=config.get('access_role',''),config.get('access_reference','')
+        key=config.get('investigation_id')
+        if key:
+            item=next((item for item in self.store.get(workspace).get('investigations',[]) if item['id']==key),None)
+            if not item:raise ImportProblem('Session investigation is outside this workspace.')
+            role,reference=item['access_role'],item['access_reference']
+        return {'origins':scope.origins,'excluded_paths':scope.excluded,'ca_sha256':scope.ca_sha256,
+                'execution_context':config.get('execution_context'),'access_role':role,'access_reference':reference}
+
+    def forget_owner(self,owner):
+        with self.lock:
+            for key,row in list(self.sessions.items()):
+                if row.get('owner','local')==owner:self.sessions.pop(key)['config'].clear()
+        self.execution.forget_owner(owner)
 
     def block_controls(self,scope):
         with self.lock:scope.forbidden_ports.update(p.server.server_address[1] for p in self.proxies.values() if not p.closed)
@@ -52,11 +72,11 @@ class WebTools:
                 if not r.closed:scope.forbidden_ports.update((r.http.server_address[1],r.dns.server_address[1]))
         scope.check(scope.start)
 
-    def session_list(self,workspace):
+    def session_list(self,workspace,owner=None):
         with self.lock:
             for key,row in list(self.sessions.items()):
                 if row['expires']<time.monotonic():self.sessions.pop(key)['config'].clear()
-            return [{'id':key,'label':row['label'],'remaining_seconds':max(0,int(row['expires']-time.monotonic()))} for key,row in self.sessions.items() if row['workspace']==workspace]
+            return [{'id':key,'label':row['label'],'remaining_seconds':max(0,int(row['expires']-time.monotonic()))} for key,row in self.sessions.items() if row['workspace']==workspace and (owner is None or row.get('owner','local')==owner)]
 
     def save_session(self,workspace,config):
         from .web_auth import AuthSession
@@ -64,13 +84,14 @@ class WebTools:
         self.session_list(workspace)
         with self.lock:
             if len(self.sessions)>=8:raise ImportProblem('At most eight transient authentication sessions; discard an unused session first.')
-            key=uuid.uuid4().hex;self.sessions[key]={'workspace':workspace,'label':clean(config.get('session_label','Assessment session'))[:100],'expires':time.monotonic()+3600,'config':copy.deepcopy(config['auth'])}
+            key=uuid.uuid4().hex;self.sessions[key]={'workspace':workspace,'owner':config.get('_execution_owner','local'),'label':clean(config.get('session_label','Assessment session'))[:100],'expires':time.monotonic()+3600,'config':copy.deepcopy(config['auth']),'binding':self.session_binding(workspace,config)}
         return {'id':key,'retention':'Memory only, expires after one hour or server restart. Running scans keep their own bounded session.'}
 
-    def forget_session(self,workspace,key):
+    def forget_session(self,workspace,key,owner=None):
         with self.lock:
             row=self.sessions.get(key)
             if not row or row['workspace']!=workspace:raise ImportProblem('Session not found in this workspace.')
+            if owner is not None and row.get('owner','local')!=owner:raise ImportProblem('Session belongs to another operator sign-in.')
             self.sessions.pop(key)['config'].clear()
         return {'discarded':True}
 
@@ -81,8 +102,24 @@ class WebTools:
             with self.lock:
                 row=self.sessions.get(config['session_id'])
                 if not row or row['workspace']!=workspace:raise ImportProblem('Session expired or belongs to another workspace.')
+                if row.get('owner','local')!=config.get('_execution_owner','local'):raise ImportProblem('Session belongs to another operator sign-in.')
+                if row.get('binding')!=self.session_binding(workspace,config):raise ImportProblem('Session target, execution host/interface or declared access role/reference changed. Keep a fresh matching session before testing.')
                 config['auth']=copy.deepcopy(row['config'])
         return config
+
+    def bind_execution(self,workspace,scope,config,required=False,kind=None):
+        if config.get('investigation_id') and kind in ('proxy','browser','websocket'):
+            raise ImportProblem('Use the investigation request/scanner controls for linked tests. This interactive tool does not yet support investigation run linkage.')
+        if config.get('execution_context') is not None or required or config.get('investigation_id'):
+            if kind is not None and config.get('execution_kind')!=kind:raise ImportProblem('Execution review kind does not match this operation. Preview the exact operation again.')
+        key=config.get('investigation_id')
+        if key:
+            item=next((item for item in self.store.get(workspace).get('investigations',[]) if item['id']==key),None)
+            if not item:raise ImportProblem('Investigation belongs to another workspace.')
+            if not item.get('execution_context'):raise ImportProblem('Save and review an execution host/interface for this investigation before testing.')
+            if config.get('execution_context')!=item['execution_context']:raise ExecutionChanged('Prepared execution host/interface differs from the saved investigation. Review it before testing.')
+            required=True
+        return self.execution.bind(workspace,scope,config,required)
     def capture(self,workspace,event,source,config):
         event=copy.deepcopy(event)
         # A delayed probe can finish after its receiver has stopped and cleared
@@ -107,6 +144,7 @@ class WebTools:
         """Validate a prepared handoff; it carries neither authority nor secrets."""
         key = config.get('investigation_id')
         if key is None:
+            if config.get('resumes_run_id') is not None:raise ImportProblem('A resumed run must belong to a reviewed investigation.')
             return None
         if not isinstance(key, str) or not key:
             raise ImportProblem('Choose an investigation in this workspace.')
@@ -120,6 +158,10 @@ class WebTools:
             raise ImportProblem('Reopen this investigation before starting another test.')
         if row['access_mode'] == 'authenticated' and (kind not in ('scanner', 'matrix') or not config.get('auth')):
             raise ImportProblem('Re-establish authentication and use the authenticated scanner for this investigation. Saved access references are not sessions.')
+        if row['access_mode']=='anonymous' and (config.get('auth') or config.get('session_id')):
+            raise ImportProblem('This investigation declares anonymous access. Remove authentication or deliberately save the intended access context first.')
+        if row['access_mode']=='authenticated' and (config.get('access_role')!=row['access_role'] or config.get('access_reference')!=row['access_reference']):
+            raise ImportProblem('Selected access role/reference differs from the saved investigation. Review the intended identity before testing.')
         return row
 
     def investigation_run(self, workspace, kind, plan, config):
@@ -128,7 +170,7 @@ class WebTools:
         with self.store.lock:
             investigation = self.investigation_for_test(workspace, config, kind)
             if investigation:
-                run = self.store.start_investigation_run(workspace, kind, plan, investigation['id'])
+                run = self.store.start_investigation_run(workspace, kind, plan, investigation['id'],resumes_run_id=config.get('resumes_run_id'))
                 run['investigation_revision'] = investigation['revision'] + 1
                 return run
             return self.store.start_web_run(workspace, kind, plan)
@@ -170,6 +212,9 @@ class WebTools:
         if kind=='matrix':plan.update(attack_mode=config.get('attack_mode','sniper'),positions=[{'name':p['name'],'location':p['location'],'payload_count':len(p['payloads'])} for p in config['positions']],processor=config.get('processor','none'))
         with self.lock:
             if sum(not j['stop'].is_set() and j['thread'].is_alive() for j in self.jobs.values())>=2:raise ImportProblem('At most two active web jobs are supported.')
+            proof=self.bind_execution(workspace,scope,config,kind=kind)
+            if proof:
+                plan['execution_context']=proof;config['vantage']=proof['host']['name']+' · '+proof['interface'];plan['vantage']=config['vantage']
             run=self.investigation_run(workspace,kind,plan,config);stop=threading.Event()
             thread=threading.Thread(target=self._job,args=(workspace,run,scope,copy.deepcopy(config),stop),daemon=True)
             self.jobs[run['id']]={'workspace':workspace,'stop':stop,'thread':thread};thread.start()
@@ -230,6 +275,8 @@ class WebTools:
                 self.store.update_web_run(workspace,run['id'],requests=count,import_ids=imports,errors=errors[:100],skipped=skipped)
                 if queue:stop.wait(plan['delay_ms']/1000)
             if errors and state=='completed':state='partial';reason='Some requests failed; evidence retained'
+        except ExecutionChanged as exc:
+            state='partial';reason=str(exc);errors.append(reason)
         except Exception as exc:
             state='failed';reason=str(exc)[:200] if isinstance(exc,ImportProblem) else 'Job processing failed; retained completed captures';errors.append(reason)
         finally:
@@ -243,6 +290,7 @@ class WebTools:
         return {'stop_requested':True,'run_id':run_id}
 
     def send(self,workspace,config):
+        config=self.session_config(workspace,config)
         method = config.get('method', 'GET')
         if not isinstance(method, str) or method not in METHODS:
             raise ImportProblem('Unsupported HTTP method.')
@@ -250,16 +298,22 @@ class WebTools:
         scope=Scope(config,self.port)
         self.block_controls(scope)
         run = None
+        proof=self.bind_execution(workspace,scope,config,kind='request')
+        if proof:config['vantage']=proof['host']['name']+' · '+proof['interface']
         if config.get('investigation_id') is not None:
             plan = {**scope.summary(), 'url': safe_url(config.get('request_url') or config['url']),
                     'capture_mode': 'redacted' if config.get('retain_body') else 'metadata',
                     'max_requests': 1, 'max_seconds': 5, 'method': method,
                     'authentication': {'mode': 'unverified request'}}
+            if proof:plan['execution_context']=proof
             run = self.investigation_run(workspace, 'request', plan, config)
             self.store.update_web_run(workspace, run['id'], state='running')
         try:
             event=fetch(scope,config.get('request_url') or config['url'],config.get('method','GET'),config.get('headers',[]),config.get('body',''))
             imported=self.capture(workspace,event,'web-workbench',config)
+        except ExecutionChanged as exc:
+            if run:self.store.update_web_run(workspace,run['id'],state='partial',ended_at=now(),reason=str(exc))
+            raise
         except Exception:
             if run:
                 self.store.update_web_run(workspace, run['id'], state='failed', ended_at=now(),

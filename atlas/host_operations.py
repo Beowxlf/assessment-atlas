@@ -100,14 +100,19 @@ def operation(data, scope):
     return plan
 
 
-def command(plan, output):
+def command(plan, output, source=None):
     """Return argv only. Revalidate the plan with the local scope before calling."""
     common=['nmap','-sT','-Pn','-n','-T3','--max-retries','2','--max-rate','200','--host-timeout',str(plan['timeout'])+'s']
+    if source:
+        # Request the measured local source/interface. These options are not
+        # proof of strict device binding for every connect/version operation;
+        # route/source monitoring remains necessary.
+        common += ['-e', plan['interface'], '-S', target_ip(source)]
     if plan['profile'] in ('tcp-discovery','tcp-all','service-enumeration'):
         options={'tcp-discovery':['--top-ports','1000'], 'tcp-all':['-p-'], 'service-enumeration':['-sV','--version-light','-p',plan.get('ports','')]}[plan['profile']]
         return common + options + ['-oX',str(output),plan['target']]
     u=urlsplit(plan['url']);port=u.port or (443 if u.scheme=='https' else 80)
-    return ['curl','--disable','--silent','--show-error','--head','--noproxy','*','--proto','=http,https','--connect-timeout','10','--max-time',str(plan['timeout']), '--max-filesize','65536','--resolve',f'{u.hostname}:{port}:{plan["target"]}','--output',str(output),'--url',plan['url']]
+    return ['curl','--disable','--silent','--show-error','--head','--noproxy','*','--proto','=http,https','--interface','if!'+plan['interface'],'--connect-timeout','10','--max-time',str(plan['timeout']), '--max-filesize','65536','--resolve',f'{u.hostname}:{port}:{plan["target"]}','--output',str(output),'--url',plan['url']]
 
 
 def plan_digest(plan):

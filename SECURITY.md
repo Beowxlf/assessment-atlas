@@ -38,6 +38,8 @@ Related: [Governance](GOVERNANCE.md), [evidence lifecycle](docs/architecture.md)
 
 ## Public advisory boundary
 
+Investigation-linked tests additionally require an explicit execution-host/interface expectation and a fresh, single-use context review. Reviews and authenticated sessions are bound in process memory; route/context changes stop collection with incomplete evidence. [Execution context](docs/execution-context.md) distinguishes measured routes, intended identity labels, native socket enforcement and sampled external-tool limits. Restoring saved work never restores credentials or execution authority.
+
 Public vulnerability imports/SBOMs are inert. Public API access is opt-in and limited to fixed verified HTTPS routes with public DNS pinning, no redirects, private-target fields, arbitrary API endpoint/key controls or certificate bypass. Queries disclose selected software/advisory identities; the shared local cache retains them and uploaded filenames. Source authenticity/age, applicability gaps, immutable assessment copies and separate exploitation-probability/severity context are required. See [Vulnerability scans](docs/vulnerability-scans.md). Prepared UI handoffs must reset authorization/secret request context and never trigger live collection.
 
 ## Optional hosted Linux execution

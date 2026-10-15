@@ -91,6 +91,7 @@ async function consoleRefresh(){
     terminalView?.reset();consoleInvalidatePlan();
     if(previous){if(terminal)await api('terminal/stop',{workspace:previous,id:terminal}).catch(()=>{});if(browser)await api('web/browser/stop',{workspace:previous,id:browser,config:{}}).catch(()=>{});}
     if(state?.id!==current)return;
+    if(current&&window.atlasExecutionStatus){window.atlasExecutionStatus().then(status=>{if(state?.id===current)$('console-vantage').textContent='Execution server: '+status.host.name+' · '+status.host.platform+'. Connect the HTB VPN on that server; the computer viewing this page supplies no route to it. Typed terminal operations check their selected interface. Embedded browsing here uses the server’s current routing.';}).catch(error=>{if(state?.id===current)$('console-vantage').textContent='Execution host could not be described: '+error.message;});}
   }
   const selected=$('console-subject').value;clear('console-subject').append(new Option('Choose an existing identity',''));
   for(const identity of state?.entities||[])$('console-subject').append(new Option(identity.label+' · '+identity.kind,identity.id));
@@ -103,7 +104,7 @@ async function consoleStartTerminal(operation=false){
   const workspace=state.id;terminalStarting=true;consoleControls();$('terminal-status').textContent='Starting on the Atlas execution host…';
   try{
     const data={workspace,authorized:$(operation?'terminal-operation-authorized':'terminal-authorized').checked,request_id:crypto.randomUUID().replaceAll('-','')};
-    if(operation)Object.assign(data,{operation:consoleOperation(),interface:$('terminal-interface').value,digest:terminalPlan.digest});
+    if(operation){Object.assign(data,{operation:consoleOperation(),interface:$('terminal-interface').value,digest:terminalPlan.digest,context_token:terminalPlan.context_token});consoleInvalidatePlan();$('terminal-plan-summary').textContent='Reviewed operation submitted. Preview again before another configured run.';}
     const result=await api('terminal/start',data);
     if(state?.id!==workspace){await api('terminal/stop',{workspace,id:result.id});return;}
     terminalId=result.id;terminalCursor=0;terminalView.reset();terminalView.focus();await terminalStatus();
@@ -129,8 +130,9 @@ run(async()=>{
     needsWorkspace();const workspace=state.id,operation=consoleOperation(),iface=$('terminal-interface').value;consoleInvalidatePlan();
     const result=await api('terminal/preview',{workspace,interface:iface,operation});
     if(state?.id!==workspace||JSON.stringify(operation)!==JSON.stringify(consoleOperation())||iface!==$('terminal-interface').value)return;
-    terminalPlan=result;$('terminal-plan').textContent=JSON.stringify(result,null,2);
-    $('terminal-plan-summary').textContent='Reviewed preview · '+result.plan.target+' · '+result.plan.profile+' · '+(result.route?'route '+result.route.interface+' from '+result.route.source:'Linux route check required')+' · '+result.plan.timeout+' seconds. Changes require a new preview.';consoleControls();
+    terminalPlan=result;const display={...result};delete display.context_token;$('terminal-plan').textContent=JSON.stringify(display,null,2);
+    $('terminal-plan-summary').textContent='Reviewed preview · '+result.plan.target+' · '+result.plan.profile+' · '+(result.route?'route '+result.route.interface+' from '+result.route.source:'Linux route check required')+' · '+result.plan.timeout+' seconds. Changes require a new preview; this review expires in '+(result.expires_in||60)+' seconds.';consoleControls();
+    if(Number.isFinite(result.expires_in))setTimeout(()=>{if(terminalPlan===result){consoleInvalidatePlan();$('terminal-plan-summary').textContent='Execution review expired. Preview the current target and route again.';}},result.expires_in*1000);
   });});
   $('terminal-operation').addEventListener('input',consoleInvalidatePlan);
   $('embedded-start').addEventListener('submit',event=>{event.preventDefault();run(async()=>{
@@ -162,7 +164,8 @@ run(async()=>{
   $('embedded-auth').addEventListener('click',()=>run(async()=>{
     if(!embeddedId||!embeddedScope)throw new Error('Start and sign in through the embedded browser first.');const scope={...embeddedScope};
     window.atlasResetInvestigationTest?.();
-    $('web-scope').reset();webClearAuth();$('web-session').value='';$('web-authorized').checked=false;
+    $('web-scope').reset();$('web-request').reset();webClearAuth();$('web-session').value='';$('web-authorized').checked=false;
+    for(const id of ['web-request-result','web-session-result','web-schema-result','web-proxy-credentials'])clear(id);
     await operatorOpen({view:'web',tab:'scanner',auth:true});if(state?.id!==scope.workspace)return;
     $('web-scope').reset();webClearAuth();$('web-url').value=scope.url;$('web-prefix').value=scope.prefix;$('web-ca').value=scope.ca;$('web-vantage').value='Atlas Linux server';$('web-session').value='';$('web-authorized').checked=false;
     $('web-auth-check').value='';$('web-auth-marker').value='';$('web-auth-origins').value='';

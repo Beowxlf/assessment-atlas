@@ -85,6 +85,7 @@ class Interrupted(Exception):
 
 
 def run_scan(tools,workspace,run,scope,config,stop):
+    from .execution import ExecutionChanged
     from .web_tools import passive_checks
     plan=run['plan'];started=time.monotonic();count=0;imports=[];errors=[];skipped=0;audited=0;findings=0;reported=set();auth=None;last_guard=0;refreshes=0
     state='completed';reason='Audit queue exhausted';checks=config.get('checks',['passive']);excluded=config.get('exclude_parameters',[])
@@ -221,6 +222,7 @@ def run_scan(tools,workspace,run,scope,config,stop):
         if auth:verify()
         if errors:state='partial';reason='Some requests failed; completed evidence retained'
     except Interrupted as exc:state=exc.state;reason=exc.reason
+    except ExecutionChanged as exc:state='partial';reason=str(exc)
     except (ImportProblem,ValueError,TypeError):state='failed';reason='Authentication/audit configuration or response processing failed; completed evidence retained'
     except Exception:state='failed';reason='Audit processing failed; completed evidence retained'
     finally:

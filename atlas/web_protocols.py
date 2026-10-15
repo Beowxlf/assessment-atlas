@@ -39,7 +39,7 @@ def exchange_h2(scope,url,method,headers,body,timeout,limit):
     except ImportError:raise ImportProblem('HTTP/2 requires requirements-protocols.txt in the Python used by Atlas.') from None
     origin,_,_,host,port=web_url(url);address=scope.pins[origin][0];sock=None;started=time.monotonic();raw=bytearray();status=None;response_headers=[];truncated=False;transport={}
     try:
-        sock=socket.create_connection((address,port),timeout)
+        sock=scope.connect(address,port,timeout)
         if origin.startswith('https:'):
             context=ssl.create_default_context(cadata=scope.ca_pem or None);context.minimum_version=ssl.TLSVersion.TLSv1_2;context.set_alpn_protocols(['h2']);sock=context.wrap_socket(sock,server_hostname=host)
             if sock.selected_alpn_protocol()!='h2':raise ImportProblem('The server did not negotiate HTTP/2; no silent fallback was made.')
@@ -89,8 +89,10 @@ def exchange_h3(scope,url,method,headers,body,timeout,limit):
     logger.propagate=False
     conn=QuicConnection(configuration=config);http=H3Connection(conn);raw=bytearray();response_headers=[];status=None;handshake=False;sent=False;finished=False;truncated=False;stream_id=None;started=time.monotonic();received=0
     with socket.socket(family,socket.SOCK_DGRAM) as sock:
+        scope.check_execution();scope.bind_socket(sock,address)
         sock.connect(destination);conn.connect(destination,now=time.monotonic())
         while not finished:
+            scope.check_execution()
             current=time.monotonic()
             if current-started>=timeout:raise TimeoutError()
             for data,target in conn.datagrams_to_send(now=current):

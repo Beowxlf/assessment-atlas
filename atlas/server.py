@@ -113,6 +113,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authenticated():
             return self.respond({"error": "Open the local application first."}, 403)
         try:
+            if path=='/api/execution/status':
+                query=parse_qs(urlsplit(self.path).query)
+                self.server.store.get(query.get('workspace',[''])[0])
+                return self.respond(self.server.web.execution.describe())
             if path=='/api/terminal/status':
                 query=parse_qs(urlsplit(self.path).query);workspace=query.get('workspace',[''])[0];self.server.store.get(workspace)
                 key=query.get('id',[''])[0]
@@ -130,7 +134,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not proxy:raise ImportProblem('Proxy not found in this workspace.')
                     return self.respond(proxy.certificates.pem,mime='application/x-pem-file',attachment='atlas-isolated-proxy-ca.pem')
                 from .web_protocols import available
-                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace),'sockets':[s.status() for s in self.server.web.sockets.values() if s.workspace==workspace],'receivers':[r.status() for r in self.server.web.receivers.values() if r.workspace==workspace],'protocols':available()})
+                return self.respond({'runs':self.server.store.web_runs(workspace),'proxies':[p.status() for p in proxies],'browsers':[b.status() for b in self.server.web.browsers.values() if b.workspace==workspace],'sessions':self.server.web.session_list(workspace,self.owner()),'sockets':[s.status() for s in self.server.web.sockets.values() if s.workspace==workspace],'receivers':[r.status() for r in self.server.web.receivers.values() if r.workspace==workspace],'protocols':available()})
             if path == "/api/session":
                 return self.respond({"nonce": self.csrf(), "version": __version__, "mode":'hosted' if self.server.hosted else 'local', "storage": 'Protected data on the Atlas server' if self.server.hosted else str(self.server.store.path), "vantage":'Terminal and native browser/web requests execute on the Atlas host. The accessing browser does not supply its VPN route.', "limits": "8 MiB per import; 10,000 entities / 50,000 observations per workspace"})
             if path == "/api/workspaces":
@@ -169,6 +173,10 @@ class Handler(BaseHTTPRequestHandler):
             data=self.read_json()
             store = self.server.store
             workspace = data.get("workspace", "")
+            if path=='/api/execution/preview':
+                return self.respond(self.server.web.execution.preview(workspace,{**data,'_execution_owner':self.owner()}))
+            if path.startswith('/api/web/'):
+                data['_execution_owner']=self.owner()
             if path.startswith('/api/investigation/'):
                 if not isinstance(workspace, str):
                     raise ImportProblem('Choose a workspace identifier.')
@@ -178,6 +186,7 @@ class Handler(BaseHTTPRequestHandler):
                     '/api/investigation/evidence': store.link_investigation_evidence,
                     '/api/investigation/finding': store.investigation_finding,
                     '/api/investigation/next': store.investigation_next,
+                    '/api/investigation/resume': store.investigation_resume,
                 }
                 action = actions.get(path)
                 if not action:
@@ -185,13 +194,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(action(workspace, data))
             if path=='/api/logout' and self.server.hosted:
                 owner=self.owner();self.server.terminals.close_owner(owner)
+                self.server.web.forget_owner(owner)
                 for browser in list(self.server.web.browsers.values()):
                     if getattr(browser,'owner',None)==owner:browser.stop()
                 self.server.hosted.logout(self.headers.get('Cookie',''))
                 return self.respond({'signed_out':True},cookie=self.server.hosted.cookie(expire=True))
             if path.startswith('/api/terminal/'):
                 self.server.store.get(workspace);terminals=self.server.terminals
-                if path=='/api/terminal/preview':return self.respond(terminals.preview(data))
+                if path=='/api/terminal/preview':return self.respond(terminals.preview(data,self.owner()))
                 if path=='/api/terminal/start':return self.respond(terminals.start(workspace,self.owner(),data))
                 terminal=terminals.get(workspace,self.owner(),data.get('id'))
                 if path=='/api/terminal/input':terminal.input(data.get('input'));return self.respond({'accepted':True})
@@ -238,6 +248,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond({'error': 'Unknown vulnerability action.'}, 404)
             if path.startswith('/api/web/'):
                 store.get(workspace);tools=self.server.web;config=data.get('config',{})
+                if not isinstance(config,dict):raise ImportProblem('Web configuration must be an object.')
+                config={**config,'_execution_owner':self.owner()}
                 if not isinstance(config,dict):raise ImportProblem('Tool configuration must be an object.')
                 if path=='/api/web/start':return self.respond(tools.start(workspace,data.get('kind'),config))
                 if path=='/api/web/stop':return self.respond(tools.stop(workspace,data.get('id')))
@@ -274,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
                     from .web_transport import Scope
                     return self.respond(api_inventory(data.get('schema'),Scope(config,self.server.server_address[1],resolve=False)))
                 if path=='/api/web/session/save':return self.respond(tools.save_session(workspace,config))
-                if path=='/api/web/session/forget':return self.respond(tools.forget_session(workspace,data.get('id')))
+                if path=='/api/web/session/forget':return self.respond(tools.forget_session(workspace,data.get('id'),self.owner()))
                 if path=='/api/web/browser/session':
                     browser=tools.browsers.get(data.get('id'))
                     if not browser or browser.workspace!=workspace:raise ImportProblem('Active browser not found in this workspace.')

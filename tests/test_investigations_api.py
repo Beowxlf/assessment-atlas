@@ -161,18 +161,32 @@ class InvestigationAPITests(unittest.TestCase):
         return self.post('create', {'name': 'Synthetic investigation API acceptance', 'scope': 'Owned loopback fixture only'})['id']
 
     def investigation(self, key, **changes):
-        return self.post('investigation/save', {'workspace': key, 'question': 'Does the controlled record require authentication?', **changes})['investigations'][-1]
+        return self.post('investigation/save', {'workspace': key, 'question': 'Does the controlled record require authentication?',
+                                               'execution_context': self.execution(key), **changes})['investigations'][-1]
+
+    def execution(self, key):
+        status = self.get('/api/execution/status?workspace=' + key)
+        interface = 'lo' if os.name == 'posix' else 'system'
+        return {'host_id': status['host']['id'], 'interface': interface}
+
+    def review(self, key, config, kind='scanner'):
+        config = {**config, 'execution_context': self.execution(key), 'execution_kind': kind}
+        if config.get('investigation_id'):
+            inv = next(row for row in self.workspace(key)['investigations'] if row['id'] == config['investigation_id'])
+            config.update(access_role=inv['access_role'], access_reference=inv['access_reference'])
+        preview = self.post('execution/preview', {'workspace': key, **config})
+        return {**config, 'context_token': preview['token']}
 
     def config(self, **changes):
         return {'url': self.url + '/private/record', 'path_prefix': '/', 'authorized': True,
                 'max_requests': 20, 'max_seconds': 30, 'delay_ms': 250, 'max_depth': 0,
                 'checks': ['passive'], 'retain_body': True, **changes}
 
-    def session(self, key):
-        return self.post('web/session/save', {'workspace': key, 'config': self.config(auth={
+    def session(self, key, config=None):
+        return self.post('web/session/save', {'workspace': key, 'config': {**self.config(), **(config or {}), 'auth': {
             'check_url': self.url + '/guard', 'success_text': MARKER,
             'headers': 'Cookie: session=' + COOKIE,
-        })})['id']
+        }}})['id']
 
     def finished(self, key, run_id):
         deadline = time.monotonic() + 20
@@ -213,8 +227,9 @@ class InvestigationAPITests(unittest.TestCase):
         key = self.create()
         inv = self.investigation(key, access_mode='authenticated', access_role='synthetic auditor', access_reference='ref:fixture-auditor',
                                  objective='SYNTHETIC_PRIVATE_OBJECTIVE', rationale='SYNTHETIC_PRIVATE_REASON', next_action='SYNTHETIC_PRIVATE_NEXT')
-        session = self.session(key)
-        config = self.config(session_id=session, investigation_id=inv['id'], investigation_revision=inv['revision'])
+        config = self.config(investigation_id=inv['id'], investigation_revision=inv['revision'], execution_context=self.execution(key))
+        config['session_id'] = self.session(key, config)
+        config = self.review(key, config)
         run = self.post('web/start', {'workspace': key, 'kind': 'scanner', 'config': config})
         self.assertEqual(self.finished(key, run['id'])['state'], 'completed')
         workspace = self.workspace(key)
@@ -250,15 +265,16 @@ class InvestigationAPITests(unittest.TestCase):
         code, _, failure = self.request('/api/web/start', {'workspace': key, 'kind': 'scanner', 'config': config})
         self.assertEqual(code, 400, failure)
         self.assertEqual(self.target.seen, before, 'An expired session must not fall back to anonymous target probing')
-        config['session_id'] = self.session(key)
+        config['session_id'] = self.session(key, config)
         config['investigation_revision'] = self.workspace(key)['investigations'][0]['revision']
+        config = self.review(key, config)
         rerun = self.post('web/start', {'workspace': key, 'kind': 'scanner', 'config': config})
         self.assertEqual(self.finished(key, rerun['id'])['state'], 'completed')
 
     def test_process_interruption_preserves_partial_evidence_without_negative_conclusion(self):
         key = self.create()
         inv = self.investigation(key)
-        config = self.config(url=self.url + '/public', paths=['/slow'], investigation_id=inv['id'], investigation_revision=inv['revision'])
+        config = self.review(key, self.config(url=self.url + '/public', paths=['/slow'], investigation_id=inv['id'], investigation_revision=inv['revision']), kind='crawl')
         run = self.post('web/start', {'workspace': key, 'kind': 'crawl', 'config': config})
         self.assertTrue(self.target.entered.wait(8), 'Owned slow endpoint was not reached')
         before = self.workspace(key)
@@ -316,7 +332,7 @@ class InvestigationAPITests(unittest.TestCase):
         self.start_server()
         before_calls = list(self.target.seen)
         code, _, error = self.request('/api/web/start', {'workspace': other, 'kind': 'scanner',
-                                    'config': self.config(url=self.url + '/public', investigation_id=quota['id'], investigation_revision=quota['revision'])})
+                                    'config': self.review(other, self.config(url=self.url + '/public', investigation_id=quota['id'], investigation_revision=quota['revision']))})
         self.assertEqual(code, 400, error)
         self.assertEqual(len(self.workspace(other)['web_runs']), 100)
         self.assertEqual(self.target.seen, before_calls)
@@ -324,7 +340,7 @@ class InvestigationAPITests(unittest.TestCase):
     def test_stale_prepared_context_and_invalid_request_method_make_no_requests_or_orphan_run(self):
         key = self.create()
         inv = self.investigation(key)
-        prepared = self.config(url=self.url + '/public', investigation_id=inv['id'], investigation_revision=inv['revision'])
+        prepared = self.review(key, self.config(url=self.url + '/public', investigation_id=inv['id'], investigation_revision=inv['revision']))
         self.post('investigation/save', {'workspace': key, 'id': inv['id'], 'revision': inv['revision'],
                                          'rationale': 'A second synthetic tab revised the test interpretation.'})
         before = list(self.target.seen)
